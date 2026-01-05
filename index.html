@@ -5,11 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Conferência de Nota Fiscal - HS</title>
 
-  <!-- Ícones -->
   <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-
-  <!-- Dynamsoft Barcode Reader -->
   <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js"></script>
 
   <style>
@@ -56,8 +53,6 @@
     .btn-secundario:hover{background:#3c4043}
     .btn-ok{background:#0f766e}
     .btn-ok:hover{background:#115e59}
-    .btn-alerta{background:#ef4444}
-    .btn-alerta:hover{background:#b91c1c}
     .btn-full{width:100%;margin-top:8px}
     .linha-botoes{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 5px}
     .linha-botoes button{flex:1;min-width:160px}
@@ -70,15 +65,8 @@
     .loading{font-style:italic;color:#1a73e8;font-size:13px;margin-top:10px;text-align:center}
     .erro{color:#f97373;font-size:13px;margin-top:8px}
 
-    .cards{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin-top:12px;
-    }
-    .card{
-      background:#252525;border:1px solid #3b3b3b;border-radius:10px;padding:12px;
-    }
+    .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+    .card{background:#252525;border:1px solid #3b3b3b;border-radius:10px;padding:12px}
     .kpi{
       display:flex;justify-content:space-between;align-items:center;
       padding:8px 10px;border-radius:10px;background:#202020;border:1px solid #303030;
@@ -110,9 +98,6 @@
     .extra{background:#1f2937;color:#e5e7eb;border:1px solid #374151}
 
     .campo-pesquisa{margin-top:14px}
-    footer{
-      text-align:center;font-size:13px;color:#ccc;background:#2c2c2c;padding:10px 15px;border-radius:6px;margin:10px;max-width:980px;width:100%;
-    }
 
     /* Scanner */
     #scanner{
@@ -124,6 +109,17 @@
     .scanner-info{margin-top:10px;font-size:14px;text-align:center;color:#e5e7eb}
     .scanner-close{
       position:absolute;top:15px;right:15px;background:#111827;border-radius:999px;padding:8px 12px;font-size:12px
+    }
+
+    .mini-teste{
+      margin-top:10px;padding:10px;border:1px dashed #444;border-radius:10px;background:#1b1b1b;
+    }
+    .mini-teste .row{align-items:center}
+    .mini-teste input{margin:0}
+    .mini-teste button{min-width:160px}
+
+    footer{
+      text-align:center;font-size:13px;color:#ccc;background:#2c2c2c;padding:10px 15px;border-radius:6px;margin:10px;max-width:980px;width:100%;
     }
 
     @media (max-width: 860px){
@@ -194,6 +190,7 @@
             <div class="card">
               <div class="titulo">Scanner de Peças</div>
               <div class="muted">Escaneie os EANs das etiquetas. Vai somando automático.</div>
+
               <div class="linha-botoes" style="margin-top:10px">
                 <button class="btn-ok" onclick="abrirLeitor('EAN')">
                   <i class="fas fa-barcode"></i> Escanear EAN (Peças)
@@ -201,6 +198,17 @@
                 <button class="btn-secundario" onclick="limparScans()">
                   <i class="fas fa-eraser"></i> Zerar Scans
                 </button>
+              </div>
+
+              <!-- ✅ MODO TESTE (colar EAN) -->
+              <div class="mini-teste">
+                <div class="muted" style="margin-bottom:6px"><strong>Teste sem câmera:</strong> cole um EAN e clique em Adicionar</div>
+                <div class="row" style="gap:10px">
+                  <input id="ean-manual" type="text" placeholder="Cole aqui o EAN (somente números)" />
+                  <button class="btn-ok" onclick="adicionarEANManual()">
+                    <i class="fas fa-plus"></i> Adicionar
+                  </button>
+                </div>
               </div>
 
               <div class="linha-botoes">
@@ -244,10 +252,9 @@
   <footer>HS Operações © 2026 - Conferência de NF</footer>
 
   <script>
-    // ✅ TROQUE PELA URL DO WEBAPP NOVO (GS abaixo)
+    // ✅ TROQUE PELA URL DO WEBAPP (seu Apps Script implantado)
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
-    // Licença Dynamsoft (pode reutilizar a mesma)
     Dynamsoft.DBR.BarcodeScanner.license =
       "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTA1MDEzMzM1LU1UQTFNREV6TXpNMUxYZGxZaTFVY21saGJGQnliMm8iLCJtYWluU2VydmVyVVJMIjoiaHR0cHM6Ly9tZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwib3JnYW5pemF0aW9uSUQiOiIxMDUwMTMzMzUiLCJzdGFuZGJ5U2VydmVyVVJMIjoiaHR0cHM6Ly9zZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwiY2hlY2tDb2RlIjoxNzIwODEyNjE2fQ==";
 
@@ -256,12 +263,12 @@
 
     let filialAtual = null;
     let scannerInstance = null;
-    let modoScanner = "NF"; // NF | EAN
+    let modoScanner = "NF";
 
     let cabecalhoAtual = null;
-    let itensNF = [];          // [{ean,codigo,cor,quantidadeNF}]
-    let mapaNF = {};           // ean -> itemNF
-    let mapaScan = {};         // ean -> qtdScan
+    let itensNF = [];        // [{ean,codigo,cor,quantidadeNF}]
+    let mapaNF = {};         // ean -> itemNF
+    let mapaScan = {};       // ean -> qtdScan
     let ultimoCodigoLido = "";
     let ultimoTs = 0;
 
@@ -302,6 +309,7 @@
       document.getElementById("btn-enviar").classList.add("hidden");
       document.getElementById("msg").classList.add("hidden");
       document.getElementById("filtro").value = "";
+      document.getElementById("ean-manual").value = "";
       termoFiltro = "";
 
       cabecalhoAtual = null;
@@ -337,6 +345,7 @@
         if(!data.success) throw new Error(data.message || "Falha ao carregar NF.");
 
         cabecalhoAtual = data.cabecalho || {};
+
         itensNF = (data.itens || []).map(x => ({
           ean: (x.ean || "").toString().trim(),
           codigo: (x.codigo || "").toString().trim(),
@@ -347,7 +356,7 @@
         mapaNF = {};
         itensNF.forEach(i => { mapaNF[i.ean] = i; });
 
-        mapaScan = {}; // zera scans ao carregar NF
+        mapaScan = {};
         atualizarKPIs();
 
         const resumo = document.getElementById("resumo-nf");
@@ -369,10 +378,12 @@
     }
 
     function atualizarKPIs(){
-      const totalNF = itensNF.reduce((s,i)=>s + (i.quantidadeNF || 0), 0);
+      const totalNF = itensNF.reduce((s,i)=>s + (Number(i.quantidadeNF)||0), 0);
       const totalScan = Object.values(mapaScan).reduce((s,v)=>s + (Number(v)||0), 0);
-      document.getElementById("kpi-nf").textContent = String(totalNF);
-      document.getElementById("kpi-scan").textContent = String(totalScan);
+
+      // como é peça, exibe inteiro
+      document.getElementById("kpi-nf").textContent = String(Math.round(totalNF));
+      document.getElementById("kpi-scan").textContent = String(Math.round(totalScan));
     }
 
     function limparScans(){
@@ -389,25 +400,48 @@
     }
 
     function renderListaInicial(){
-      // Lista “neutra”: mostra itens da NF com qtd NF e qtd scan (0 se ainda não)
       const lista = montarListaConferencia(false);
       render(lista);
     }
 
-    function fazerConferencia(){
+    async function fazerConferencia(){
       if(!cabecalhoAtual){
         alert("Carregue a NF primeiro.");
         return;
       }
-      const lista = montarListaConferencia(true);
-      render(lista);
 
-      // libera enviar
+      // monta lista com status
+      let lista = montarListaConferencia(true);
+
+      // ✅ preencher ref/cor de EXTRAS via banco (só para os que estão vazios)
+      const extrasSemInfo = lista
+        .filter(x => x.status === "EXTRA" && (!x.codigo && !x.cor))
+        .map(x => x.ean);
+
+      if(extrasSemInfo.length){
+        try{
+          const payload = { api:"buscarInfoEAN", filial: filialAtual, eans: extrasSemInfo };
+          const resp = await fetch(URL_API, { method:"POST", body: JSON.stringify(payload) });
+          const out = await resp.json();
+          if(out && out.success && out.itens){
+            const map = out.itens;
+            lista = lista.map(x => {
+              if(x.status === "EXTRA" && map[x.ean]){
+                return { ...x, codigo: map[x.ean].codigo || x.codigo, cor: map[x.ean].cor || x.cor };
+              }
+              return x;
+            });
+          }
+        }catch(e){
+          // se falhar lookup, segue sem info (não trava)
+        }
+      }
+
+      render(lista);
       document.getElementById("btn-enviar").classList.remove("hidden");
     }
 
     function montarListaConferencia(aplicarStatus){
-      // junta EANs: todos da NF + extras escaneados
       const set = new Set();
       itensNF.forEach(i => set.add(i.ean));
       Object.keys(mapaScan).forEach(e => set.add(e));
@@ -416,6 +450,7 @@
         const nf = mapaNF[ean] || null;
         const qtdNF = nf ? Number(nf.quantidadeNF||0) : 0;
         const qtdScan = Number(mapaScan[ean] || 0);
+
         let status = "OK";
         if(aplicarStatus){
           if(!nf && qtdScan > 0) status = "EXTRA";
@@ -423,18 +458,18 @@
           else if(qtdScan > qtdNF) status = "PASSANDO";
           else status = "OK";
         }
+
         return {
           ean,
           codigo: nf ? nf.codigo : "",
           cor: nf ? nf.cor : "",
-          qtdNF,
-          qtdScan,
-          diff: qtdScan - qtdNF,
+          qtdNF: Math.round(qtdNF),
+          qtdScan: Math.round(qtdScan),
+          diff: Math.round(qtdScan - qtdNF),
           status
         };
       });
 
-      // filtro
       const t = (termoFiltro||"").toLowerCase();
       if(t){
         arr = arr.filter(x =>
@@ -444,14 +479,10 @@
         );
       }
 
-      // ordena: divergências primeiro quando aplicarStatus
       if(aplicarStatus){
         const peso = s => (s==="FALTANDO"?0:s==="PASSANDO"?1:s==="EXTRA"?2:3);
         arr.sort((a,b)=>peso(a.status)-peso(b.status));
-      }
 
-      // resumo
-      if(aplicarStatus){
         const falt = arr.filter(x=>x.status==="FALTANDO").length;
         const pass = arr.filter(x=>x.status==="PASSANDO").length;
         const extra = arr.filter(x=>x.status==="EXTRA").length;
@@ -502,7 +533,7 @@
       });
     }
 
-    // -------- Scanner (NF e EAN) --------
+    // -------- Scanner --------
     async function abrirLeitor(modo){
       const scannerDiv = document.getElementById("scanner");
       const scannerView = document.getElementById("scanner-view");
@@ -515,12 +546,11 @@
         return;
       }
 
-      // limpa view
       scannerView.innerHTML = "";
       scannerDiv.style.display = "flex";
       info.innerHTML = (modoScanner === "NF")
         ? "Aponte para o código de barras da NF (chave 44).<br/>Ao ler, fecha automaticamente."
-        : "Aponte para o EAN das peças.<br/>Cada leitura soma +1 automaticamente. Você pode deixar aberto e ir passando as peças.";
+        : "Aponte para o EAN das peças.<br/>Cada leitura soma +1 automaticamente.";
 
       try{
         if(scannerInstance){
@@ -538,20 +568,20 @@
             const code = (r.barcodeText || "").trim();
             if(!code) continue;
 
-            // anti-repetição muito rápida
+            // anti-repetição
             const now = Date.now();
-            if(code === ultimoCodigoLido && (now - ultimoTs) < 500) return;
+            if(code === ultimoCodigoLido && (now - ultimoTs) < 600) return;
             ultimoCodigoLido = code;
             ultimoTs = now;
 
             if(modoScanner === "NF"){
-              if(code.length >= 44){
-                document.getElementById("chave").value = code.substring(0,44);
+              const only = code.replace(/\D/g,'');
+              if(only.length >= 44){
+                document.getElementById("chave").value = only.substring(0,44);
                 fecharLeitor();
                 return;
               }
             } else {
-              // EAN geralmente 8-14 dígitos
               const ean = normalizarEAN(code);
               if(!ean) return;
               adicionarScan(ean);
@@ -568,10 +598,8 @@
     }
 
     function normalizarEAN(code){
-      // pega só números
       const only = (code || "").replace(/\D/g,"");
       if(only.length < 8) return "";
-      // muitos leitores retornam com caracteres extras; aqui mantemos até 14
       return only.length > 14 ? only.substring(0,14) : only;
     }
 
@@ -579,10 +607,25 @@
       mapaScan[ean] = Number(mapaScan[ean] || 0) + 1;
       atualizarKPIs();
 
-      // re-render “neutro” ou mantém conferência aplicada se já tiver
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
       const lista = montarListaConferencia(jaConferido);
       render(lista);
+    }
+
+    function adicionarEANManual(){
+      if(!cabecalhoAtual){
+        alert("Carregue a NF primeiro.");
+        return;
+      }
+      const inp = document.getElementById("ean-manual");
+      const ean = normalizarEAN(inp.value || "");
+      if(!ean){
+        alert("EAN inválido.");
+        return;
+      }
+      adicionarScan(ean);
+      inp.value = "";
+      inp.focus();
     }
 
     async function fecharLeitor(){
@@ -598,7 +641,7 @@
       scannerDiv.style.display = "none";
     }
 
-    // -------- Envio do resultado --------
+    // -------- Envio --------
     async function enviarConferencia(){
       const erro = document.getElementById("erro");
       const msg = document.getElementById("msg");
@@ -612,7 +655,6 @@
       msg.textContent = "Enviando resultado da conferência...";
       msg.classList.remove("hidden");
 
-      // monta lista final com status
       const listaFinal = montarListaConferencia(true);
 
       const payload = {
@@ -650,7 +692,7 @@
       }
     }
 
-    // filtro
+    // filtro + boot
     window.addEventListener("load", ()=>{
       const f = localStorage.getItem("filial_conf_nf");
       if(f && filiaisValidas.includes(f)){
@@ -665,6 +707,13 @@
         const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
         const lista = montarListaConferencia(jaConferido);
         render(lista);
+      });
+
+      document.getElementById("ean-manual").addEventListener("keydown", (e)=>{
+        if(e.key === "Enter"){
+          e.preventDefault();
+          adicionarEANManual();
+        }
       });
     });
   </script>
