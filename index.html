@@ -111,6 +111,22 @@
       position:absolute;top:15px;right:15px;background:#111827;border-radius:999px;padding:8px 12px;font-size:12px
     }
 
+    /* toque p/ próximo */
+    .tap-to-next{
+      margin-top:10px;
+      padding:10px 14px;
+      border:1px solid #334155;
+      background:#0b1220;
+      border-radius:12px;
+      color:#e5e7eb;
+      font-weight:800;
+      text-align:center;
+      width:min(520px, 92vw);
+      cursor:pointer;
+      user-select:none;
+    }
+    .tap-to-next small{display:block;color:#94a3b8;font-weight:700;margin-top:4px}
+
     .mini-teste{
       margin-top:10px;padding:10px;border:1px dashed #444;border-radius:10px;background:#1b1b1b;
     }
@@ -225,7 +241,7 @@
           </div>
 
           <div class="campo-pesquisa">
-            <label for="filtro">Buscar (EAN / referência / cor)</label>
+            <label for="filtro">Buscar (EAN / referência / cor / tamanho)</label>
             <input id="filtro" type="text" placeholder="Digite para filtrar..." />
           </div>
 
@@ -247,6 +263,12 @@
     </button>
     <div id="scanner-view"></div>
     <div class="scanner-info" id="scanner-info"></div>
+
+    <!-- trava de toque -->
+    <div id="tapNext" class="tap-to-next hidden" onclick="liberarProximoScan()">
+      ✅ Lido! Toque aqui para escanear o próximo
+      <small>(evita disparar várias vezes o mesmo código)</small>
+    </div>
   </div>
 
   <footer>HS Operações © 2026 - Conferência de NF</footer>
@@ -266,13 +288,17 @@
     let modoScanner = "NF";
 
     let cabecalhoAtual = null;
-    let itensNF = [];        // [{ean,codigo,cor,quantidadeNF}]
+    let itensNF = [];        // [{ean,codigo,cor,tamanho,quantidadeNF}]
     let mapaNF = {};         // ean -> itemNF
     let mapaScan = {};       // ean -> qtdScan
-    let ultimoCodigoLido = "";
-    let ultimoTs = 0;
 
     let termoFiltro = "";
+
+    // trava por toque (EAN)
+    let scanTravado = false;
+
+    // beep
+    let audioCtx = null;
 
     function entrar(){
       const cod = document.getElementById("codigo-filial").value.trim();
@@ -316,8 +342,6 @@
       itensNF = [];
       mapaNF = {};
       mapaScan = {};
-      ultimoCodigoLido = "";
-      ultimoTs = 0;
     }
 
     async function carregarNF(){
@@ -350,6 +374,7 @@
           ean: (x.ean || "").toString().trim(),
           codigo: (x.codigo || "").toString().trim(),
           cor: (x.cor || "").toString().trim(),
+          tamanho: (x.tamanho || "").toString().trim(),
           quantidadeNF: Number(x.quantidade || 0)
         })).filter(x => x.ean);
 
@@ -381,7 +406,6 @@
       const totalNF = itensNF.reduce((s,i)=>s + (Number(i.quantidadeNF)||0), 0);
       const totalScan = Object.values(mapaScan).reduce((s,v)=>s + (Number(v)||0), 0);
 
-      // como é peça, exibe inteiro
       document.getElementById("kpi-nf").textContent = String(Math.round(totalNF));
       document.getElementById("kpi-scan").textContent = String(Math.round(totalScan));
     }
@@ -410,12 +434,11 @@
         return;
       }
 
-      // monta lista com status
       let lista = montarListaConferencia(true);
 
-      // ✅ preencher ref/cor de EXTRAS via banco (só para os que estão vazios)
+      // ✅ preencher ref/cor/tamanho de EXTRAS via banco
       const extrasSemInfo = lista
-        .filter(x => x.status === "EXTRA" && (!x.codigo && !x.cor))
+        .filter(x => x.status === "EXTRA" && (!x.codigo && !x.cor && !x.tamanho))
         .map(x => x.ean);
 
       if(extrasSemInfo.length){
@@ -427,14 +450,17 @@
             const map = out.itens;
             lista = lista.map(x => {
               if(x.status === "EXTRA" && map[x.ean]){
-                return { ...x, codigo: map[x.ean].codigo || x.codigo, cor: map[x.ean].cor || x.cor };
+                return {
+                  ...x,
+                  codigo: map[x.ean].codigo || x.codigo,
+                  cor: map[x.ean].cor || x.cor,
+                  tamanho: map[x.ean].tamanho || x.tamanho
+                };
               }
               return x;
             });
           }
-        }catch(e){
-          // se falhar lookup, segue sem info (não trava)
-        }
+        }catch(e){}
       }
 
       render(lista);
@@ -463,6 +489,7 @@
           ean,
           codigo: nf ? nf.codigo : "",
           cor: nf ? nf.cor : "",
+          tamanho: nf ? nf.tamanho : "",
           qtdNF: Math.round(qtdNF),
           qtdScan: Math.round(qtdScan),
           diff: Math.round(qtdScan - qtdNF),
@@ -475,7 +502,8 @@
         arr = arr.filter(x =>
           (x.ean||"").toLowerCase().includes(t) ||
           (x.codigo||"").toLowerCase().includes(t) ||
-          (x.cor||"").toLowerCase().includes(t)
+          (x.cor||"").toLowerCase().includes(t) ||
+          (x.tamanho||"").toLowerCase().includes(t)
         );
       }
 
@@ -524,6 +552,7 @@
           </div>
           <div class="row">
             <div><strong>Ref/Cor:</strong> <span class="muted">${(item.codigo || "-")} / ${(item.cor || "-")}</span></div>
+            <div><strong>Tam:</strong> <span class="muted">${(item.tamanho || "-")}</span></div>
             <div><strong>NF:</strong> <span class="muted">${item.qtdNF}</span></div>
             <div><strong>Scan:</strong> <span class="muted">${item.qtdScan}</span></div>
             <div><strong>Dif:</strong> <span class="muted">${item.diff}</span></div>
@@ -533,13 +562,32 @@
       });
     }
 
+    // -------- Beep --------
+    function beepOk(){
+      try{
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = "square";
+        o.frequency.value = 880;     // tom do bip
+        g.gain.value = 0.08;         // volume
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start();
+        setTimeout(()=>{ o.stop(); }, 120);
+      }catch(e){}
+    }
+
     // -------- Scanner --------
     async function abrirLeitor(modo){
       const scannerDiv = document.getElementById("scanner");
       const scannerView = document.getElementById("scanner-view");
       const info = document.getElementById("scanner-info");
+      const tapNext = document.getElementById("tapNext");
 
       modoScanner = modo;
+      scanTravado = false;
+      tapNext.classList.add("hidden");
 
       if(modoScanner === "EAN" && !cabecalhoAtual){
         alert("Carregue a NF primeiro.");
@@ -550,7 +598,7 @@
       scannerDiv.style.display = "flex";
       info.innerHTML = (modoScanner === "NF")
         ? "Aponte para o código de barras da NF (chave 44).<br/>Ao ler, fecha automaticamente."
-        : "Aponte para o EAN das peças.<br/>Cada leitura soma +1 automaticamente.";
+        : "Aponte para o EAN das peças.<br/><strong>Lê 1 vez</strong>, dá bip, e <strong>trava</strong> até você tocar para ler o próximo.";
 
       try{
         if(scannerInstance){
@@ -564,27 +612,32 @@
         await scannerInstance.updateRuntimeSettings("speed");
 
         scannerInstance.onFrameRead = results => {
+          if(!results || !results.length) return;
+
+          // ✅ trava por toque (só para EAN)
+          if(modoScanner === "EAN" && scanTravado) return;
+
           for (let r of results){
             const code = (r.barcodeText || "").trim();
             if(!code) continue;
-
-            // anti-repetição
-            const now = Date.now();
-            if(code === ultimoCodigoLido && (now - ultimoTs) < 600) return;
-            ultimoCodigoLido = code;
-            ultimoTs = now;
 
             if(modoScanner === "NF"){
               const only = code.replace(/\D/g,'');
               if(only.length >= 44){
                 document.getElementById("chave").value = only.substring(0,44);
+                beepOk();
                 fecharLeitor();
                 return;
               }
             } else {
               const ean = normalizarEAN(code);
               if(!ean) return;
+
+              // registra 1 vez, bipa e trava até toque
               adicionarScan(ean);
+              beepOk();
+              travarAteToque();
+              return;
             }
           }
         };
@@ -595,6 +648,18 @@
         alert("Erro ao iniciar o leitor: " + (ex.message || ex));
         scannerDiv.style.display = "none";
       }
+    }
+
+    function travarAteToque(){
+      const tapNext = document.getElementById("tapNext");
+      scanTravado = true;
+      tapNext.classList.remove("hidden");
+    }
+
+    function liberarProximoScan(){
+      const tapNext = document.getElementById("tapNext");
+      scanTravado = false;
+      tapNext.classList.add("hidden");
     }
 
     function normalizarEAN(code){
@@ -624,12 +689,17 @@
         return;
       }
       adicionarScan(ean);
+      beepOk();
       inp.value = "";
       inp.focus();
     }
 
     async function fecharLeitor(){
       const scannerDiv = document.getElementById("scanner");
+      const tapNext = document.getElementById("tapNext");
+      tapNext.classList.add("hidden");
+      scanTravado = false;
+
       try{
         if(scannerInstance){
           await scannerInstance.hide();
@@ -670,6 +740,7 @@
           ean: i.ean,
           codigo: i.codigo,
           cor: i.cor,
+          tamanho: i.tamanho,   // ✅
           qtdNF: i.qtdNF,
           qtdScan: i.qtdScan,
           diff: i.diff,
