@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Conferência de Nota Fiscal - HS</title>
 
+  <!-- ✅ FORÇA NÃO USAR CACHE (ADICIONADO) -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
   <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js"></script>
@@ -314,6 +319,36 @@
 
   <script>
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec"; // SUBSTITUA PELA SUA URL
+
+    /* ✅ FORÇA ATUALIZAÇÃO DE CACHE NOS CELULARES (ADICIONADO) */
+    const CACHE_VERSION = "2026.01.07-1"; // <-- MUDE ISSO SEMPRE QUE ATUALIZAR O SITE
+
+    (function forceUpdateIfNeeded(){
+      try {
+        const key = "hs_conf_nf_cache_version";
+        const old = localStorage.getItem(key);
+
+        if (old !== CACHE_VERSION) {
+          localStorage.setItem(key, CACHE_VERSION);
+
+          // tenta apagar caches (quando suportado)
+          if (window.caches && caches.keys) {
+            caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(()=>{});
+          }
+
+          // tenta atualizar service worker (se existir)
+          if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.getRegistrations()
+              .then(regs => regs.forEach(r => r.update().catch(()=>{})))
+              .catch(()=>{});
+          }
+
+          // recarrega forçando nova versão
+          setTimeout(() => location.reload(true), 200);
+        }
+      } catch(e) {}
+    })();
+
     const filiaisValidas = ["293", "488", "287", "288", "761"];
     const nomesFiliais = {
       "293": "ARTUR",
