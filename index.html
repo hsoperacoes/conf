@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Conferência de Nota Fiscal - HS</title>
-
-  <!-- ✅ FORÇA NÃO USAR CACHE (ADICIONADO) -->
+  <!-- Forçar atualização do cache -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
+  
+  <title>Conferência de Nota Fiscal - HS</title>
 
+  <!-- Adicionar parâmetro de versão para forçar atualização -->
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
-  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js"></script>
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.0" />
+  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js?version=2.0"></script>
 
   <style>
     *{box-sizing:border-box}
@@ -176,12 +177,12 @@
 <body>
 
   <div class="top-nav">
-    <a href="index.html" class="back-button">
+    <a href="index.html?version=2.0" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=2.0" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -314,41 +315,42 @@
   </div>
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Todos os direitos reservados.
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.0
   </footer>
 
   <script>
-    const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec"; // SUBSTITUA PELA SUA URL
-
-    /* ✅ FORÇA ATUALIZAÇÃO DE CACHE NOS CELULARES (ADICIONADO) */
-    const CACHE_VERSION = "2026.01.07-1"; // <-- MUDE ISSO SEMPRE QUE ATUALIZAR O SITE
-
-    (function forceUpdateIfNeeded(){
-      try {
-        const key = "hs_conf_nf_cache_version";
-        const old = localStorage.getItem(key);
-
-        if (old !== CACHE_VERSION) {
-          localStorage.setItem(key, CACHE_VERSION);
-
-          // tenta apagar caches (quando suportado)
-          if (window.caches && caches.keys) {
-            caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(()=>{});
+    // Versão da aplicação - altere este número sempre que fizer uma atualização
+    const APP_VERSION = "2.0";
+    
+    // Forçar recarga da página se a versão no localStorage for diferente
+    const storedVersion = localStorage.getItem('hs_conferencia_version');
+    if (storedVersion !== APP_VERSION) {
+      localStorage.setItem('hs_conferencia_version', APP_VERSION);
+      
+      // Limpar cache do Service Worker se existir
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
           }
-
-          // tenta atualizar service worker (se existir)
-          if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.getRegistrations()
-              .then(regs => regs.forEach(r => r.update().catch(()=>{})))
-              .catch(()=>{});
-          }
-
-          // recarrega forçando nova versão
-          setTimeout(() => location.reload(true), 200);
+        });
+      }
+      
+      // Limpar todo o cache do localStorage relacionado à aplicação
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('hs_') || key.startsWith('filial_') || key.startsWith('conferencia_')) {
+          keysToRemove.push(key);
         }
-      } catch(e) {}
-    })();
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Recarregar a página forçando o cache
+      window.location.href = window.location.href.split('?')[0] + '?version=' + APP_VERSION + '&t=' + new Date().getTime();
+    }
 
+    const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec"; // SUBSTITUA PELA SUA URL
     const filiaisValidas = ["293", "488", "287", "288", "761"];
     const nomesFiliais = {
       "293": "ARTUR",
@@ -408,7 +410,7 @@
       painel.classList.add("hidden");
 
       try {
-        const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${filialAtual}&chave=${chave}`);
+        const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${filialAtual}&chave=${chave}&v=${APP_VERSION}`);
         const data = await resp.json();
 
         if(!data.success) throw new Error(data.message || "Erro ao buscar NF.");
@@ -607,7 +609,7 @@
       if(!senha) return;
 
       try {
-        const resp = await fetch(`${URL_API}?api=validarSenha&senha=${senha}`);
+        const resp = await fetch(`${URL_API}?api=validarSenha&senha=${senha}&v=${APP_VERSION}`);
         const data = await resp.json();
 
         if(data.success){
@@ -749,7 +751,7 @@
       try {
         const resp = await fetch(URL_API, {
           method: "POST",
-          body: JSON.stringify({ api: "buscarInfoEAN", filial: filialAtual, eans: [ean] })
+          body: JSON.stringify({ api: "buscarInfoEAN", filial: filialAtual, eans: [ean], v: APP_VERSION })
         });
         const data = await resp.json();
         if(data.success && data.itens[ean]){
@@ -832,6 +834,7 @@
         dataConferencia: new Date().toISOString(),
         totalNF: Number(document.getElementById("kpi-nf").textContent || 0),
         totalScan: Number(document.getElementById("kpi-scan").textContent || 0),
+        versaoApp: APP_VERSION,
         itens: listaFinal.map(i => ({
           ean: i.ean,
           codigo: i.codigo,
