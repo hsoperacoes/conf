@@ -144,6 +144,20 @@
     }
     .btn-ajuste:hover{background: #4b5563;}
 
+    /* Modal de Divergências */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      display: none; justify-content: center; align-items: center; z-index: 2000;
+    }
+    .modal-content {
+      background: #1e1e1e; padding: 25px; border-radius: 12px; width: 90%; max-width: 600px;
+      border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .modal-header { color: #f97373; font-size: 1.2rem; font-weight: 800; margin-bottom: 15px; text-align: center; }
+    .modal-body { max-height: 300px; overflow-y: auto; margin-bottom: 20px; font-size: 14px; }
+    .modal-item { padding: 8px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; }
+    .modal-footer { text-align: center; }
+
     footer{
       text-align:center;font-size:13px;color:#ccc;background:#2c2c2c;padding:10px 15px;border-radius:6px;margin:10px;max-width:980px;width:100%;
     }
@@ -229,6 +243,7 @@
               <!-- ✅ MODO TESTE (colar EAN) -->
               <div class="mini-teste">
                 <div class="muted" style="margin-bottom:6px"><strong>Teste sem câmera:</strong> cole um EAN e clique em Adicionar</div>
+                <div id="buffer-ean" class="loading hidden" style="margin-bottom:5px">🔍 Buscando dados no banco...</div>
                 <div class="row" style="gap:10px">
                   <input id="ean-manual" type="text" placeholder="Cole aqui o EAN (somente números)" />
                   <button class="btn-ok" onclick="adicionarEANManual()">
@@ -272,24 +287,40 @@
       <i class="fas fa-times"></i> Fechar
     </button>
     <div id="scanner-view"></div>
-    <div class="scanner-info" id="scanner-info"></div>
-
-    <!-- trava de toque -->
+    <div id="scanner-info" class="scanner-info"></div>
     <div id="tapNext" class="tap-to-next hidden" onclick="liberarProximoScan()">
-      ✅ Lido! Toque aqui para escanear o próximo
+      <i class="fas fa-hand-pointer"></i> TOQUE PARA LER O PRÓXIMO
+      <small>O leitor está travado para evitar bips duplos.</small>
     </div>
   </div>
 
+  <!-- Modal de Divergências -->
+  <div id="modal-divergencia" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">⚠️ DIVERGÊNCIAS IDENTIFICADAS</div>
+      <div class="modal-body" id="modal-lista">
+        <!-- Itens com divergência aparecerão aqui -->
+      </div>
+      <div class="modal-footer">
+        <p style="font-size: 13px; color: #bbb; margin-bottom: 15px;">Favor fazer uma conferência dos mesmos.</p>
+        <button onclick="fecharModal()">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Todos os direitos reservados.
+  </footer>
+
   <script>
-    // CONFIGURAÇÕES
-    const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec"; // Substitua pela sua URL
-    const filiaisValidas = ["293","488","287","288","761"];
+    const URL_API = "https://script.google.com/macros/s/AKfycbz_7f_6f_6f_6f_6f_6f_6f_6f_6f_6f_6f_6f/exec"; // SUBSTITUA PELA SUA URL
+    const filiaisValidas = ["293", "488", "287", "288", "761"];
     const nomesFiliais = {
-      "293":"ARTUR",
-      "488":"FLORIANO",
-      "287":"JOTA",
-      "288":"MODA",
-      "761":"PONTO"
+      "293": "ARTUR",
+      "488": "FLORIANO",
+      "287": "JOTA",
+      "288": "PONTO",
+      "761": "MODA"
     };
 
     let filialAtual = "";
@@ -301,10 +332,9 @@
     let modoScanner = "";
     let scanTravado = false;
     let audioCtx = null;
-
-    // Lógica de Bip Inteligente
     let ultimoEanBipado = "";
     let ultimaHoraBip = 0;
+    let cacheInfoEAN = {}; // Cache para evitar buscas repetidas no banco
 
     // -------- Login --------
     function entrar(){
@@ -326,179 +356,217 @@
       location.reload();
     }
 
-    // -------- Busca NF --------
+    // -------- Carregar NF --------
     async function carregarNF(){
       const chave = document.getElementById("chave").value.trim();
       const erro = document.getElementById("erro");
       const loading = document.getElementById("loading");
       const painel = document.getElementById("painel");
 
-      erro.textContent = "";
       if(chave.length !== 44){
-        erro.textContent = "A chave deve ter 44 dígitos.";
+        alert("A chave deve ter 44 dígitos.");
         return;
       }
 
+      erro.textContent = "";
       loading.classList.remove("hidden");
       painel.classList.add("hidden");
-      cabecalhoAtual = null;
-      itensNF = [];
-      mapaScan = {};
-      document.getElementById("btn-enviar").classList.add("hidden");
 
-      try{
+      try {
         const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${filialAtual}&chave=${chave}`);
         const data = await resp.json();
 
-        if(!data.success) throw new Error(data.message || "Erro desconhecido.");
+        if(!data.success) throw new Error(data.message || "Erro ao buscar NF.");
 
         cabecalhoAtual = data.cabecalho;
-        itensNF = data.itens || [];
+        itensNF = data.itens;
+        mapaScan = {};
         
         document.getElementById("resumo-nf").innerHTML = `
           <strong>NF:</strong> ${cabecalhoAtual.numeroNF} | 
-          <strong>Emissão:</strong> ${cabecalhoAtual.dataEmissao}<br/>
-          <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente}
+          <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente} | 
+          <strong>Data:</strong> ${cabecalhoAtual.dataEmissao}
         `;
         
         atualizarKPIs();
-        render(montarListaConferencia(false));
         painel.classList.remove("hidden");
+        document.getElementById("btn-enviar").classList.add("hidden");
+        
+        // Renderiza com jaConferido = false para o status vir em branco
+        render(montarListaConferencia(false));
 
-      }catch(err){
-        erro.textContent = "Erro: " + (err.message || err);
-      }finally{
+      } catch(err) {
+        erro.textContent = err.message;
+      } finally {
         loading.classList.add("hidden");
       }
     }
 
+    // -------- Lógica de Conferência --------
     function atualizarKPIs(){
       let totalNF = 0;
-      itensNF.forEach(i => totalNF += (i.quantidade || 0));
+      itensNF.forEach(i => totalNF += i.quantidade);
       
       let totalScan = 0;
-      for(let k in mapaScan) totalScan += mapaScan[k];
+      Object.values(mapaScan).forEach(v => totalScan += v);
 
       document.getElementById("kpi-nf").textContent = totalNF;
       document.getElementById("kpi-scan").textContent = totalScan;
     }
 
-    function limparScans(){
-      if(!confirm("Zerar todas as contagens feitas até agora?")) return;
-      mapaScan = {};
-      atualizarKPIs();
-      render(montarListaConferencia(false));
-      document.getElementById("btn-enviar").classList.add("hidden");
+    function montarListaConferencia(jaConferido){
+      const lista = [];
+      const eansNaNota = new Set();
+
+      // Itens da Nota
+      itensNF.forEach(i => {
+        const ean = i.ean;
+        eansNaNota.add(ean);
+        const qtdScan = mapaScan[ean] || 0;
+        const diff = qtdScan - i.quantidade;
+        
+        let status = "";
+        if(jaConferido){
+          if(diff === 0) status = "OK";
+          else if(diff < 0) status = "FALTANDO";
+          else status = "PASSANDO";
+        }
+
+        lista.push({
+          ean,
+          codigo: i.codigo,
+          cor: i.cor,
+          tamanho: i.tamanho,
+          qtdNF: i.quantidade,
+          qtdScan,
+          diff,
+          status,
+          tipo: "nota"
+        });
+      });
+
+      // Itens Extras (Bipados mas não estão na nota)
+      Object.keys(mapaScan).forEach(ean => {
+        if(!eansNaNota.has(ean)){
+          const info = cacheInfoEAN[ean] || { codigo: "---", cor: "---", tamanho: "---" };
+          lista.push({
+            ean,
+            codigo: info.codigo,
+            cor: info.cor,
+            tamanho: info.tamanho,
+            qtdNF: 0,
+            qtdScan: mapaScan[ean],
+            diff: mapaScan[ean],
+            status: jaConferido ? "EXTRA" : "",
+            tipo: "extra"
+          });
+        }
+      });
+
+      // Filtro de busca
+      if(termoFiltro){
+        const t = termoFiltro.toLowerCase();
+        return lista.filter(i => 
+          i.ean.includes(t) || 
+          String(i.codigo).toLowerCase().includes(t) || 
+          String(i.cor).toLowerCase().includes(t) || 
+          String(i.tamanho).toLowerCase().includes(t)
+        );
+      }
+
+      return lista;
     }
 
-    // -------- Lógica de Conferência --------
+    function render(lista){
+      const container = document.getElementById("lista");
+      container.innerHTML = "";
+
+      let faltam = 0;
+      let passam = 0;
+
+      lista.forEach(i => {
+        if(i.status === "FALTANDO") faltam++;
+        if(i.status === "PASSANDO" || i.status === "EXTRA") passam++;
+
+        const div = document.createElement("div");
+        div.className = "item";
+        
+        let badgeClass = "badge";
+        if(i.status === "OK") badgeClass += " ok";
+        else if(i.status === "FALTANDO") badgeClass += " faltando";
+        else if(i.status === "PASSANDO") badgeClass += " passando";
+        else if(i.status === "EXTRA") badgeClass += " extra";
+
+        div.innerHTML = `
+          <div class="row">
+            <strong>EAN: ${i.ean}</strong>
+            ${i.status ? `<span class="${badgeClass}">${i.status}</span>` : ""}
+            <button class="btn-ajuste" onclick="ajusteManual('${i.ean}')">
+              <i class="fas fa-edit"></i> Ajustar
+            </button>
+          </div>
+          <div class="row muted">
+            <span>Ref/Cor: ${i.codigo} / ${i.cor}</span>
+            <span>Tam: ${i.tamanho}</span>
+            <span>NF: ${i.qtdNF}</span>
+            <span>Scan: ${i.qtdScan}</span>
+            <span>Dif: ${i.diff}</span>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+
+      const resumoDiv = document.getElementById("resumo-div");
+      if(faltam > 0 || passam > 0){
+        resumoDiv.innerHTML = `<span style="color:#f97373">${faltam} faltam, ${passam} sobram</span>`;
+      } else {
+        resumoDiv.textContent = "";
+      }
+    }
+
     function fazerConferencia(){
       const lista = montarListaConferencia(true);
       render(lista);
       document.getElementById("btn-enviar").classList.remove("hidden");
-      document.getElementById("lista").scrollIntoView({behavior:"smooth"});
+      
+      // Verificar divergências para o Modal
+      const divergencias = lista.filter(i => i.diff !== 0);
+      if(divergencias.length > 0){
+        abrirModal(divergencias);
+      }
     }
 
-    function montarListaConferencia(aplicarStatus){
-      const eansNF = itensNF.map(i => i.ean);
-      const eansScan = Object.keys(mapaScan);
-      const todosEANs = [...new Set([...eansNF, ...eansScan])];
-
-      let arr = todosEANs.map(ean => {
-        const itemNF = itensNF.find(i => i.ean === ean);
-        const qtdNF = itemNF ? itemNF.quantidade : 0;
-        const qtdScan = mapaScan[ean] || 0;
-        const diff = qtdScan - qtdNF;
-
-        let status = "OK";
-        if(qtdScan === 0 && qtdNF > 0) status = "FALTANDO";
-        else if(qtdScan > 0 && qtdNF === 0) status = "EXTRA";
-        else if(qtdScan < qtdNF) status = "FALTANDO";
-        else if(qtdScan > qtdNF) status = "PASSANDO";
-
-        return {
-          ean,
-          codigo: itemNF ? itemNF.codigo : "?",
-          cor: itemNF ? itemNF.cor : "?",
-          tamanho: itemNF ? itemNF.tamanho : "?",
-          qtdNF,
-          qtdScan,
-          diff,
-          status
-        };
-      });
-
-      if(termoFiltro){
-        const t = termoFiltro.toLowerCase();
-        arr = arr.filter(x =>
-          (x.ean||"").toLowerCase().includes(t) ||
-          (x.codigo||"").toLowerCase().includes(t) ||
-          (x.cor||"").toLowerCase().includes(t) ||
-          (x.tamanho||"").toLowerCase().includes(t)
-        );
-      }
-
-      if(aplicarStatus){
-        const peso = s => (s==="FALTANDO"?0:s==="PASSANDO"?1:s==="EXTRA"?2:3);
-        arr.sort((a,b)=>peso(a.status)-peso(b.status));
-
-        const falt = arr.filter(x=>x.status==="FALTANDO").length;
-        const pass = arr.filter(x=>x.status==="PASSANDO").length;
-        const extra = arr.filter(x=>x.status==="EXTRA").length;
-        document.getElementById("resumo-div").textContent = `Faltando: ${falt} | Passando: ${pass} | Extras: ${extra}`;
-      }
-
-      return arr;
-    }
-
-    function render(lista){
-      const div = document.getElementById("lista");
-      div.innerHTML = "";
-
-      if(!lista.length){
-        div.innerHTML = `<div class="muted">Nenhum item para mostrar.</div>`;
-        return;
-      }
-
-      lista.forEach((item)=>{
-        const el = document.createElement("div");
-        el.className = "item";
-
-        const badgeClass =
-          item.status==="OK" ? "badge ok" :
-          item.status==="FALTANDO" ? "badge faltando" :
-          item.status==="PASSANDO" ? "badge passando" :
-          item.status==="EXTRA" ? "badge extra" : "badge";
-
-        const badgeText =
-          item.status==="OK" ? "OK" :
-          item.status==="FALTANDO" ? "FALTANDO" :
-          item.status==="PASSANDO" ? "PASSANDO" :
-          item.status==="EXTRA" ? "EXTRA (NÃO CONSTA NA NF)" : item.status;
-
-        el.innerHTML = `
-          <div class="row">
-            <div><strong>EAN:</strong> <span class="muted">${item.ean}</span></div>
-            <div>
-              <span class="${badgeClass}">${badgeText}</span>
-              <button class="btn-ajuste" onclick="ajusteManual('${item.ean}')">
-                <i class="fas fa-edit"></i> Ajustar
-              </button>
-            </div>
-          </div>
-          <div class="row">
-            <div><strong>Ref/Cor:</strong> <span class="muted">${(item.codigo || "-")} / ${(item.cor || "-")}</span></div>
-            <div><strong>Tam:</strong> <span class="muted">${(item.tamanho || "-")}</span></div>
-            <div><strong>NF:</strong> <span class="muted">${item.qtdNF}</span></div>
-            <div><strong>Scan:</strong> <span class="muted">${item.qtdScan}</span></div>
-            <div><strong>Dif:</strong> <span class="muted">${item.diff}</span></div>
-          </div>
+    function abrirModal(divergencias){
+      const modal = document.getElementById("modal-divergencia");
+      const listaModal = document.getElementById("modal-lista");
+      listaModal.innerHTML = "";
+      
+      divergencias.forEach(i => {
+        const div = document.createElement("div");
+        div.className = "modal-item";
+        const cor = i.diff < 0 ? "#f97373" : "#43b0ff";
+        div.innerHTML = `
+          <span><strong>${i.ean}</strong> (${i.codigo})</span>
+          <span style="color:${cor}">Dif: ${i.diff}</span>
         `;
-        div.appendChild(el);
+        listaModal.appendChild(div);
       });
+      
+      modal.style.display = "flex";
     }
 
-    // -------- Ajuste Manual com Senha no Servidor --------
+    function fecharModal(){
+      document.getElementById("modal-divergencia").style.display = "none";
+    }
+
+    function limparScans(){
+      if(!confirm("Zerar todas as contagens feitas?")) return;
+      mapaScan = {};
+      atualizarKPIs();
+      const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+      render(montarListaConferencia(jaConferido));
+    }
+
     async function ajusteManual(ean){
       const senha = prompt("Digite a senha para ajuste manual:");
       if(!senha) return;
@@ -627,11 +695,40 @@
       return only.length > 14 ? only.substring(0,14) : only;
     }
 
-    function adicionarScan(ean){
+    async function adicionarScan(ean){
       mapaScan[ean] = Number(mapaScan[ean] || 0) + 1;
+      
+      // Se for um item extra (não está na nota) e não temos no cache, busca no banco
+      const naNota = itensNF.some(i => i.ean === ean);
+      if(!naNota && !cacheInfoEAN[ean]){
+        buscarEANNoBanco(ean);
+      }
+
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
       render(montarListaConferencia(jaConferido));
+    }
+
+    async function buscarEANNoBanco(ean){
+      const buffer = document.getElementById("buffer-ean");
+      buffer.classList.remove("hidden");
+      try {
+        const resp = await fetch(URL_API, {
+          method: "POST",
+          body: JSON.stringify({ api: "buscarInfoEAN", filial: filialAtual, eans: [ean] })
+        });
+        const data = await resp.json();
+        if(data.success && data.itens[ean]){
+          cacheInfoEAN[ean] = data.itens[ean];
+          // Re-renderiza para mostrar os dados novos
+          const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+          render(montarListaConferencia(jaConferido));
+        }
+      } catch(e) {
+        console.error("Erro ao buscar EAN extra:", e);
+      } finally {
+        buffer.classList.add("hidden");
+      }
     }
 
     function adicionarEANManual(){
@@ -644,7 +741,6 @@
       if(!ean) return;
 
       const agora = Date.now();
-      // BIP INTELIGENTE: Ignora se for o mesmo EAN em menos de 500ms
       if (ean === ultimoEanBipado && (agora - ultimaHoraBip) < 500) {
         inp.value = "";
         return;
@@ -737,6 +833,7 @@
       mapaScan = {};
       itensNF = [];
       termoFiltro = "";
+      cacheInfoEAN = {};
       document.getElementById("chave").value = "";
       document.getElementById("filtro").value = "";
       document.getElementById("ean-manual").value = "";
