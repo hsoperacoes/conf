@@ -155,7 +155,7 @@
     }
     .modal-header { color: #f97373; font-size: 1.2rem; font-weight: 800; margin-bottom: 15px; text-align: center; }
     .modal-body { max-height: 300px; overflow-y: auto; margin-bottom: 20px; font-size: 14px; }
-    .modal-item { padding: 8px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; }
+    .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
     .modal-footer { text-align: center; }
 
     footer{
@@ -334,7 +334,7 @@
     let audioCtx = null;
     let ultimoEanBipado = "";
     let ultimaHoraBip = 0;
-    let cacheInfoEAN = {}; // Cache para evitar buscas repetidas no banco
+    let cacheInfoEAN = {};
 
     // -------- Login --------
     function entrar(){
@@ -392,7 +392,6 @@
         painel.classList.remove("hidden");
         document.getElementById("btn-enviar").classList.add("hidden");
         
-        // Renderiza com jaConferido = false para o status vir em branco
         render(montarListaConferencia(false));
 
       } catch(err) {
@@ -418,7 +417,6 @@
       const lista = [];
       const eansNaNota = new Set();
 
-      // Itens da Nota
       itensNF.forEach(i => {
         const ean = i.ean;
         eansNaNota.add(ean);
@@ -445,7 +443,6 @@
         });
       });
 
-      // Itens Extras (Bipados mas não estão na nota)
       Object.keys(mapaScan).forEach(ean => {
         if(!eansNaNota.has(ean)){
           const info = cacheInfoEAN[ean] || { codigo: "---", cor: "---", tamanho: "---" };
@@ -463,7 +460,6 @@
         }
       });
 
-      // Filtro de busca
       if(termoFiltro){
         const t = termoFiltro.toLowerCase();
         return lista.filter(i => 
@@ -518,7 +514,10 @@
 
       const resumoDiv = document.getElementById("resumo-div");
       if(faltam > 0 || passam > 0){
-        resumoDiv.innerHTML = `<span style="color:#f97373">${faltam} faltam, ${passam} sobram</span>`;
+        resumoDiv.innerHTML = `
+          <span style="color:#f97373">${faltam} itens FALTANDO</span>, 
+          <span style="color:#43b0ff">${passam} itens PASSANDO</span>
+        `;
       } else {
         resumoDiv.textContent = "";
       }
@@ -529,7 +528,6 @@
       render(lista);
       document.getElementById("btn-enviar").classList.remove("hidden");
       
-      // Verificar divergências para o Modal
       const divergencias = lista.filter(i => i.diff !== 0);
       if(divergencias.length > 0){
         abrirModal(divergencias);
@@ -545,8 +543,10 @@
         const div = document.createElement("div");
         div.className = "modal-item";
         const cor = i.diff < 0 ? "#f97373" : "#43b0ff";
+        const labelExtra = i.status === "EXTRA" ? " <small style='color:#bbb'>(EXTRA)</small>" : "";
+        
         div.innerHTML = `
-          <span><strong>${i.ean}</strong> (${i.codigo})</span>
+          <span><strong>${i.codigo} / ${i.cor} / ${i.tamanho}</strong>${labelExtra}</span>
           <span style="color:${cor}">Dif: ${i.diff}</span>
         `;
         listaModal.appendChild(div);
@@ -698,7 +698,6 @@
     async function adicionarScan(ean){
       mapaScan[ean] = Number(mapaScan[ean] || 0) + 1;
       
-      // Se for um item extra (não está na nota) e não temos no cache, busca no banco
       const naNota = itensNF.some(i => i.ean === ean);
       if(!naNota && !cacheInfoEAN[ean]){
         buscarEANNoBanco(ean);
@@ -720,7 +719,6 @@
         const data = await resp.json();
         if(data.success && data.itens[ean]){
           cacheInfoEAN[ean] = data.itens[ean];
-          // Re-renderiza para mostrar os dados novos
           const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
           render(montarListaConferencia(jaConferido));
         }
