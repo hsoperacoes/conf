@@ -322,32 +322,20 @@
     // Versão da aplicação - altere este número sempre que fizer uma atualização
     const APP_VERSION = "2.0";
     
-    // Forçar recarga da página se a versão no localStorage for diferente
+    // Verificação simples de versão sem recarregar automaticamente
     const storedVersion = localStorage.getItem('hs_conferencia_version');
     if (storedVersion !== APP_VERSION) {
+      console.log('Nova versão detectada:', APP_VERSION);
       localStorage.setItem('hs_conferencia_version', APP_VERSION);
       
-      // Limpar cache do Service Worker se existir
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister();
-          }
-        });
-      }
-      
-      // Limpar todo o cache do localStorage relacionado à aplicação
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith('hs_') || key.startsWith('filial_') || key.startsWith('conferencia_')) {
-          keysToRemove.push(key);
+      // Apenas limpa cache do localStorage se necessário
+      const keysToRemove = ['hs_conferencia_cache', 'hs_conferencia_data'];
+      keysToRemove.forEach(key => {
+        if (localStorage.getItem(key)) {
+          localStorage.removeItem(key);
+          console.log('Removido cache:', key);
         }
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      
-      // Recarregar a página forçando o cache
-      window.location.href = window.location.href.split('?')[0] + '?version=' + APP_VERSION + '&t=' + new Date().getTime();
+      });
     }
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec"; // SUBSTITUA PELA SUA URL
@@ -410,7 +398,7 @@
       painel.classList.add("hidden");
 
       try {
-        const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${filialAtual}&chave=${chave}&v=${APP_VERSION}`);
+        const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${filialAtual}&chave=${chave}&v=${APP_VERSION}&t=${Date.now()}`);
         const data = await resp.json();
 
         if(!data.success) throw new Error(data.message || "Erro ao buscar NF.");
@@ -609,7 +597,7 @@
       if(!senha) return;
 
       try {
-        const resp = await fetch(`${URL_API}?api=validarSenha&senha=${senha}&v=${APP_VERSION}`);
+        const resp = await fetch(`${URL_API}?api=validarSenha&senha=${senha}&v=${APP_VERSION}&t=${Date.now()}`);
         const data = await resp.json();
 
         if(data.success){
