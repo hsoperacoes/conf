@@ -10,14 +10,13 @@
   
   <title>Conferência de Nota Fiscal - HS</title>
 
-  <!-- Adicionar parâmetro de versão para forçar atualização -->
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.0" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.1" />
 
   <!-- Dynamsoft (mantido para NF) -->
-  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js?version=2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js?version=2.1"></script>
 
-  <!-- ✅ Html5Qrcode (usado para EAN) -->
+  <!-- Html5Qrcode (usado para EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
@@ -183,12 +182,12 @@
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=2.0" class="back-button">
+    <a href="index.html?version=2.1" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=2.0" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=2.1" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -214,7 +213,6 @@
         <h1>Conferência de Nota Fiscal</h1>
         <div class="info-filial" id="info-filial"></div>
 
-        <!-- ✅ CONFERENTE VOLTOU AQUI -->
         <label for="conferente">Conferente (nome)</label>
         <input id="conferente" type="text" placeholder="Ex: Will / João / Maria..." />
 
@@ -241,11 +239,12 @@
               <div class="muted" id="resumo-nf"></div>
               <div class="kpi"><strong>Total itens na NF</strong><span id="kpi-nf">0</span></div>
               <div class="kpi"><strong>Total escaneado</strong><span id="kpi-scan">0</span></div>
+              <div class="loading" id="sync-status" style="margin-top:8px">🔄 Sync: aguardando...</div>
             </div>
 
             <div class="card">
               <div class="titulo">Scanner de Peças</div>
-              <div class="muted">Escaneie os EANs das etiquetas. Vai somando automático.</div>
+              <div class="muted">Escaneie os EANs das etiquetas. Vai somando automático (multiusuário).</div>
 
               <div class="linha-botoes" style="margin-top:10px">
                 <button class="btn-ok" onclick="abrirLeitor('EAN')">
@@ -256,7 +255,7 @@
                 </button>
               </div>
 
-              <!-- ✅ MODO TESTE (colar EAN) -->
+              <!-- MODO TESTE (colar EAN) -->
               <div class="mini-teste">
                 <div class="muted" style="margin-bottom:6px"><strong>Teste sem câmera:</strong> cole um EAN e clique em Adicionar</div>
                 <div id="buffer-ean" class="loading hidden" style="margin-bottom:5px">🔍 Buscando dados no banco...</div>
@@ -324,24 +323,11 @@
   </div>
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.0
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.1
   </footer>
 
   <script>
-    const APP_VERSION = "2.0";
-
-    const storedVersion = localStorage.getItem('hs_conferencia_version');
-    if (storedVersion !== APP_VERSION) {
-      console.log('Nova versão detectada:', APP_VERSION);
-      localStorage.setItem('hs_conferencia_version', APP_VERSION);
-      const keysToRemove = ['hs_conferencia_cache', 'hs_conferencia_data'];
-      keysToRemove.forEach(key => {
-        if (localStorage.getItem(key)) {
-          localStorage.removeItem(key);
-          console.log('Removido cache:', key);
-        }
-      });
-    }
+    const APP_VERSION = "2.1";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
     const filiaisValidas = ["293", "488", "287", "288", "761"];
@@ -350,7 +336,7 @@
     let filialAtual = "";
     let cabecalhoAtual = null;
     let itensNF = [];
-    let mapaScan = {};
+    let mapaScan = {};         // ✅ agora é autoritativo (vem do SYNC)
     let termoFiltro = "";
 
     // Scanner
@@ -362,6 +348,12 @@
     let ultimoEanBipado = "";
     let ultimaHoraBip = 0;
     let cacheInfoEAN = {};
+
+    // ✅ SYNC
+    let syncTimer = null;
+    let syncChaveAtiva = "";
+    let ultimaAssinaturaSync = "";
+    const SYNC_INTERVAL_MS = 1200;
 
     // -------- Login --------
     function entrar(){
@@ -376,13 +368,13 @@
       document.getElementById("principal").classList.remove("hidden");
       document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
 
-      // ✅ carrega conferente salvo
       const confSalvo = localStorage.getItem("conferente_conf_nf") || "";
       document.getElementById("conferente").value = confSalvo;
     }
 
     function sair(){
       if(!confirm("Deseja sair?")) return;
+      pararSync_();
       localStorage.removeItem("filial_conf_nf");
       location.reload();
     }
@@ -417,7 +409,16 @@
 
         cabecalhoAtual = data.cabecalho;
         itensNF = data.itens;
+        cacheInfoEAN = {};
+        termoFiltro = "";
+
+        // ✅ inicializa mapaScan com o que o servidor devolveu (jaEscaneado)
         mapaScan = {};
+        itensNF.forEach(i=>{
+          const ean = String(i.ean||"").trim();
+          const ja = Number(i.jaEscaneado || 0);
+          if(ean && ja>0) mapaScan[ean] = ja;
+        });
 
         document.getElementById("resumo-nf").innerHTML = `
           <strong>NF:</strong> ${cabecalhoAtual.numeroNF} | 
@@ -430,6 +431,9 @@
         document.getElementById("btn-enviar").classList.add("hidden");
         render(montarListaConferencia(false));
 
+        // ✅ começa SYNC sempre que carregar NF
+        iniciarSync_(cabecalhoAtual.chaveAcesso || chave);
+
       } catch(err) {
         erro.textContent = err.message;
       } finally {
@@ -437,13 +441,13 @@
       }
     }
 
-    // -------- Lógica de Conferência --------
+    // -------- KPIs / Lista --------
     function atualizarKPIs(){
       let totalNF = 0;
-      itensNF.forEach(i => totalNF += i.quantidade);
+      itensNF.forEach(i => totalNF += (Number(i.quantidade)||0));
 
       let totalScan = 0;
-      Object.values(mapaScan).forEach(v => totalScan += v);
+      Object.values(mapaScan).forEach(v => totalScan += (Number(v)||0));
 
       document.getElementById("kpi-nf").textContent = totalNF;
       document.getElementById("kpi-scan").textContent = totalScan;
@@ -454,11 +458,11 @@
       const eansNaNota = new Set();
 
       itensNF.forEach(i => {
-        const ean = i.ean;
+        const ean = String(i.ean||"").trim();
         eansNaNota.add(ean);
 
-        const qtdScan = mapaScan[ean] || 0;
-        const diff = qtdScan - i.quantidade;
+        const qtdScan = Number(mapaScan[ean] || 0);
+        const diff = qtdScan - (Number(i.quantidade)||0);
 
         let status = "";
         if(jaConferido){
@@ -469,21 +473,22 @@
 
         lista.push({
           ean, codigo:i.codigo, cor:i.cor, tamanho:i.tamanho,
-          qtdNF:i.quantidade, qtdScan, diff, status, tipo:"nota"
+          qtdNF:Number(i.quantidade)||0, qtdScan, diff, status, tipo:"nota"
         });
       });
 
       Object.keys(mapaScan).forEach(ean => {
         if(!eansNaNota.has(ean)){
           const info = cacheInfoEAN[ean] || { codigo:"---", cor:"---", tamanho:"---" };
+          const qtd = Number(mapaScan[ean]||0);
           lista.push({
             ean,
             codigo: info.codigo,
             cor: info.cor,
             tamanho: info.tamanho,
             qtdNF: 0,
-            qtdScan: mapaScan[ean],
-            diff: mapaScan[ean],
+            qtdScan: qtd,
+            diff: qtd,
             status: jaConferido ? "EXTRA" : "",
             tipo: "extra"
           });
@@ -588,7 +593,8 @@
     }
 
     function limparScans(){
-      if(!confirm("Zerar todas as contagens feitas?")) return;
+      if(!confirm("Zerar todas as contagens feitas? (isso zera sua tela, mas o SYNC continua vindo do servidor)")) return;
+      // ⚠️ Não apagamos no servidor aqui. Apenas zera visual local; em seguida o SYNC repõe.
       mapaScan = {};
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
@@ -638,9 +644,7 @@
       try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
     }
 
-    // =========================================================
-    // ✅ EAN13 ONLY (com checksum)
-    // =========================================================
+    // -------- EAN13 only --------
     function isValidEAN13(ean){
       if(!/^\d{13}$/.test(ean)) return false;
       const digits = ean.split('').map(n => parseInt(n,10));
@@ -664,7 +668,94 @@
     }
 
     // =========================================================
-    // Scanner (NF = Dynamsoft, EAN = Html5Qrcode)
+    // ✅ SYNC TEMPO REAL
+    // =========================================================
+    function iniciarSync_(chave){
+      pararSync_();
+      syncChaveAtiva = String(chave||"").trim();
+      ultimaAssinaturaSync = "";
+      atualizarStatusSync_("🔄 Sync: iniciando...");
+
+      // primeira puxada imediata
+      puxarSync_();
+
+      syncTimer = setInterval(puxarSync_, SYNC_INTERVAL_MS);
+    }
+
+    function pararSync_(){
+      if(syncTimer){
+        clearInterval(syncTimer);
+        syncTimer = null;
+      }
+      syncChaveAtiva = "";
+      ultimaAssinaturaSync = "";
+      atualizarStatusSync_("🔄 Sync: parado");
+    }
+
+    function atualizarStatusSync_(txt){
+      const el = document.getElementById("sync-status");
+      if(el) el.textContent = txt;
+    }
+
+    async function puxarSync_(){
+      if(!cabecalhoAtual) return;
+      const chave = syncChaveAtiva || cabecalhoAtual.chaveAcesso;
+      if(!chave) return;
+
+      try{
+        const resp = await fetch(`${URL_API}?api=sincronizarBipes&chave=${encodeURIComponent(chave)}&v=${APP_VERSION}&t=${Date.now()}`);
+        const data = await resp.json();
+        if(!data || !data.success) throw new Error(data?.message || "Sync falhou");
+
+        const b = data.bipes || {};
+        // normaliza e remove zeros
+        const normalizado = {};
+        Object.keys(b).forEach(k=>{
+          const ean = String(k||"").trim();
+          const qtd = Number(b[k]||0);
+          if(ean && qtd>0) normalizado[ean] = qtd;
+        });
+
+        const assinatura = JSON.stringify(normalizado);
+        if(assinatura !== ultimaAssinaturaSync){
+          ultimaAssinaturaSync = assinatura;
+          mapaScan = normalizado;
+          atualizarKPIs();
+          const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+          render(montarListaConferencia(jaConferido));
+        }
+
+        atualizarStatusSync_(`✅ Sync OK (${new Date().toLocaleTimeString()})`);
+      }catch(e){
+        atualizarStatusSync_(`⚠️ Sync: offline/erro`);
+      }
+    }
+
+    // ✅ registra 1 bip no servidor (para somar com os outros usuários)
+    async function registrarBipeNoServidor_(ean){
+      try{
+        if(!cabecalhoAtual) return;
+        const chave = cabecalhoAtual.chaveAcesso || document.getElementById("chave").value.trim();
+        if(!chave) return;
+
+        const payload = {
+          api: "registrarBipeIndividual",
+          chaveAcesso: chave,
+          ean: ean,
+          conferente: getConferente(),
+          filial: filialAtual,
+          versaoApp: APP_VERSION
+        };
+
+        await fetch(URL_API, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        }).catch(()=>{});
+      }catch(e){}
+    }
+
+    // =========================================================
+    // Scanner (NF = Dynamsoft, EAN = Html5Qrcode) + trava
     // =========================================================
     async function abrirLeitor(modo){
       const scannerDiv = document.getElementById("scanner");
@@ -744,7 +835,7 @@
       await scannerInstance.show(scannerView);
     }
 
-    // ✅ TRAVA DO JEITO DO TESTE: NÃO PARA A CÂMERA, SÓ IGNORA CALLBACK ATÉ TOQUE
+    // ✅ trava do teste: câmera continua; callback ignora enquanto travado
     async function iniciarHtml5EAN_(scannerView){
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(520px, 92vw)"></div>`;
       html5Scanner = new Html5Qrcode("html5-ean");
@@ -760,14 +851,11 @@
         config,
         (decodedText) => {
           if(modoScanner !== "EAN") return;
-
-          // ✅ se travado, só ignora (câmera continua)
           if(scanTravado) return;
 
           const ean13 = extrairEAN13DoTexto(decodedText);
           if(!ean13) return;
 
-          // anti repetição rápida extra
           const agora = Date.now();
           if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 600) return;
           ultimoEanBipado = ean13;
@@ -775,8 +863,6 @@
 
           adicionarScan(ean13);
           beepOk();
-
-          // ✅ trava e mantém câmera rodando
           travarAteToque();
         },
         ()=>{}
@@ -799,15 +885,23 @@
       liberarProximoScan();
     }
 
+    // ✅ adiciona scan: registra no servidor e depois o SYNC traz o total
     async function adicionarScan(ean){
+      // otimista: incrementa local rapidamente (logo em seguida o SYNC substitui pelo total real)
       mapaScan[ean] = Number(mapaScan[ean] || 0) + 1;
 
-      const naNota = itensNF.some(i => i.ean === ean);
+      const naNota = itensNF.some(i => String(i.ean||"").trim() === ean);
       if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
 
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
       render(montarListaConferencia(jaConferido));
+
+      // manda pro servidor (multiusuário)
+      registrarBipeNoServidor_(ean);
+
+      // puxada rápida depois do post (pra “pegar” mais rápido quando tem outra pessoa)
+      setTimeout(puxarSync_, 250);
     }
 
     async function buscarEANNoBanco(ean){
@@ -819,7 +913,7 @@
           body: JSON.stringify({ api: "buscarInfoEAN", filial: filialAtual, eans: [ean], v: APP_VERSION })
         });
         const data = await resp.json();
-        if(data.success && data.itens[ean]){
+        if(data.success && data.itens && data.itens[ean]){
           cacheInfoEAN[ean] = data.itens[ean];
           const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
           render(montarListaConferencia(jaConferido));
@@ -898,7 +992,7 @@
         totalNF: Number(document.getElementById("kpi-nf").textContent || 0),
         totalScan: Number(document.getElementById("kpi-scan").textContent || 0),
         versaoApp: APP_VERSION,
-        conferente: conferente,  // ✅ voltou
+        conferente: conferente,
         itens: listaFinal.map(i => ({
           ean: i.ean,
           codigo: i.codigo,
@@ -929,6 +1023,7 @@
     }
 
     function limparTela(){
+      pararSync_();
       cabecalhoAtual = null;
       mapaScan = {};
       itensNF = [];
