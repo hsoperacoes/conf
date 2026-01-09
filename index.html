@@ -114,7 +114,7 @@
     #scanner{
       width:100%;height:100vh;position:fixed;inset:0;z-index:1000;
       display:none;justify-content:center;align-items:center;flex-direction:column;
-      background:rgba(0,0,0,.35); /* ✅ mais claro */
+      background:rgba(0,0,0,.35);
       backdrop-filter: blur(1px);
     }
     #scanner video,#scanner canvas{max-width:92vw;max-height:72vh}
@@ -213,6 +213,10 @@
 
         <h1>Conferência de Nota Fiscal</h1>
         <div class="info-filial" id="info-filial"></div>
+
+        <!-- ✅ CONFERENTE VOLTOU AQUI -->
+        <label for="conferente">Conferente (nome)</label>
+        <input id="conferente" type="text" placeholder="Ex: Will / João / Maria..." />
 
         <label for="chave">Chave de Acesso (44 dígitos)</label>
         <input id="chave" type="text" maxlength="44" placeholder="Digite ou leia o código de barras da NF" />
@@ -359,10 +363,6 @@
     let ultimaHoraBip = 0;
     let cacheInfoEAN = {};
 
-    // ✅ controle “trava real” (stop/start)
-    let scannerParadoPorTrava = false;
-    let podeDestravarDepoisDe = 0; // evita destravar por clique acidental logo após o bip
-
     // -------- Login --------
     function entrar(){
       const f = document.getElementById("codigo-filial").value.trim();
@@ -375,12 +375,22 @@
       document.getElementById("login").classList.add("hidden");
       document.getElementById("principal").classList.remove("hidden");
       document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
+
+      // ✅ carrega conferente salvo
+      const confSalvo = localStorage.getItem("conferente_conf_nf") || "";
+      document.getElementById("conferente").value = confSalvo;
     }
 
     function sair(){
       if(!confirm("Deseja sair?")) return;
       localStorage.removeItem("filial_conf_nf");
       location.reload();
+    }
+
+    function getConferente(){
+      const v = (document.getElementById("conferente").value || "").trim();
+      if(v) localStorage.setItem("conferente_conf_nf", v);
+      return v || "Usuário";
     }
 
     // -------- Carregar NF --------
@@ -628,7 +638,9 @@
       try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
     }
 
-    // ✅ EAN13 ONLY
+    // =========================================================
+    // ✅ EAN13 ONLY (com checksum)
+    // =========================================================
     function isValidEAN13(ean){
       if(!/^\d{13}$/.test(ean)) return false;
       const digits = ean.split('').map(n => parseInt(n,10));
@@ -662,7 +674,6 @@
 
       modoScanner = modo;
       scanTravado = false;
-      scannerParadoPorTrava = false;
       tapNext.classList.add("hidden");
 
       if(modoScanner === "EAN" && !cabecalhoAtual){
@@ -675,7 +686,7 @@
 
       info.innerHTML = (modoScanner === "NF")
         ? "Aponte para o código de barras da NF (chave 44).<br/>Ao ler, fecha automaticamente."
-        : "Aponte para o <strong>EAN-13</strong> das peças.<br/><strong>Lê 1 vez</strong>, dá bip, e <strong>TRAVA DE VERDADE</strong> (para o scanner) até você tocar em qualquer lugar.";
+        : "Aponte para o <strong>EAN-13</strong> das peças.<br/><strong>Lê 1 vez</strong>, dá bip, e <strong>trava</strong> até você tocar em qualquer lugar para ler o próximo.";
 
       try{
         await pararScannerAtual_();
@@ -693,7 +704,6 @@
     }
 
     async function pararScannerAtual_(){
-      // Para Dynamsoft
       try{
         if(scannerInstance){
           await scannerInstance.hide().catch(()=>{});
@@ -703,7 +713,6 @@
         }
       }catch(e){}
 
-      // Para Html5Qrcode
       try{
         if(html5Scanner){
           await html5Scanner.stop().catch(()=>{});
@@ -735,6 +744,7 @@
       await scannerInstance.show(scannerView);
     }
 
+    // ✅ TRAVA DO JEITO DO TESTE: NÃO PARA A CÂMERA, SÓ IGNORA CALLBACK ATÉ TOQUE
     async function iniciarHtml5EAN_(scannerView){
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(520px, 92vw)"></div>`;
       html5Scanner = new Html5Qrcode("html5-ean");
@@ -748,68 +758,45 @@
       await html5Scanner.start(
         { facingMode: "environment" },
         config,
-        async (decodedText) => {
+        (decodedText) => {
           if(modoScanner !== "EAN") return;
+
+          // ✅ se travado, só ignora (câmera continua)
           if(scanTravado) return;
 
           const ean13 = extrairEAN13DoTexto(decodedText);
           if(!ean13) return;
 
+          // anti repetição rápida extra
           const agora = Date.now();
           if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 600) return;
           ultimoEanBipado = ean13;
           ultimaHoraBip = agora;
 
-          await adicionarScan(ean13);
+          adicionarScan(ean13);
           beepOk();
 
-          // ✅ TRAVA DE VERDADE: para o scanner e só volta no toque
-          await travarAteToqueReal_();
+          // ✅ trava e mantém câmera rodando
+          travarAteToque();
         },
         ()=>{}
       );
     }
 
-    // ✅ trava real = stop no Html5Qrcode + mostra aviso
-    async function travarAteToqueReal_(){
+    function travarAteToque(){
       scanTravado = true;
-      scannerParadoPorTrava = true;
-      podeDestravarDepoisDe = Date.now() + 450; // evita destravar por toque involuntário
       document.getElementById("tapNext").classList.remove("hidden");
-
-      try{
-        if(html5Scanner){
-          await html5Scanner.stop().catch(()=>{});
-        }
-      }catch(e){}
     }
 
-    // ✅ toque em qualquer lugar: reinicia o Html5Qrcode e destrava
-    async function liberarProximoScanReal_(){
-      if(modoScanner !== "EAN") return;
-      if(Date.now() < podeDestravarDepoisDe) return;
-
+    function liberarProximoScan(){
       scanTravado = false;
       document.getElementById("tapNext").classList.add("hidden");
-
-      if(scannerParadoPorTrava){
-        scannerParadoPorTrava = false;
-        const scannerView = document.getElementById("scanner-view");
-        try{
-          // garante estado limpo e reinicia
-          await pararScannerAtual_();
-          await iniciarHtml5EAN_(scannerView);
-        }catch(e){
-          console.error("Erro ao reiniciar scanner:", e);
-        }
-      }
     }
 
     function clicouNaTelaScanner(ev){
-      // clique no overlay inteiro libera
       if(modoScanner !== "EAN") return;
       if(!scanTravado) return;
-      liberarProximoScanReal_();
+      liberarProximoScan();
     }
 
     async function adicionarScan(ean){
@@ -876,7 +863,6 @@
       const scannerDiv = document.getElementById("scanner");
       document.getElementById("tapNext").classList.add("hidden");
       scanTravado = false;
-      scannerParadoPorTrava = false;
 
       await pararScannerAtual_();
       scannerDiv.style.display = "none";
@@ -892,6 +878,8 @@
         erro.textContent = "Nenhuma NF carregada.";
         return;
       }
+
+      const conferente = getConferente();
 
       if(!confirm("Deseja enviar o resultado da conferência para o banco?")) return;
 
@@ -910,6 +898,7 @@
         totalNF: Number(document.getElementById("kpi-nf").textContent || 0),
         totalScan: Number(document.getElementById("kpi-scan").textContent || 0),
         versaoApp: APP_VERSION,
+        conferente: conferente,  // ✅ voltou
         itens: listaFinal.map(i => ({
           ean: i.ean,
           codigo: i.codigo,
@@ -955,7 +944,7 @@
       document.getElementById("chave").focus();
     }
 
-    // filtro + boot
+    // boot
     window.addEventListener("load", ()=>{
       const f = localStorage.getItem("filial_conf_nf");
       if(f && filiaisValidas.includes(f)){
@@ -963,6 +952,9 @@
         document.getElementById("login").classList.add("hidden");
         document.getElementById("principal").classList.remove("hidden");
         document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
+
+        const confSalvo = localStorage.getItem("conferente_conf_nf") || "";
+        document.getElementById("conferente").value = confSalvo;
       }
 
       document.getElementById("filtro").addEventListener("input", (e)=>{
@@ -976,6 +968,10 @@
           e.preventDefault();
           adicionarEANManual();
         }
+      });
+
+      document.getElementById("conferente").addEventListener("blur", ()=>{
+        getConferente();
       });
     });
   </script>
