@@ -367,10 +367,15 @@
         scanner.onUniqueRead = (txt, result) => {
           if (!canScan) return;
           
-          // MELHORIA: Filtro de EAN (Ignora códigos laterais com mais de 14 dígitos)
+          // MELHORIA: Filtro de EAN (Ignora códigos laterais com mais de 14 dígitos APENAS no modo EAN)
           let eanLimpo = txt.replace(/\D/g, '');
           if (modoLeitura === 'EAN' && (eanLimpo.length < 12 || eanLimpo.length > 14)) {
             console.log("Código lateral ignorado:", eanLimpo);
+            return;
+          }
+          
+          // No modo NF, aceita a chave de 44 dígitos normalmente
+          if (modoLeitura === 'NF' && eanLimpo.length !== 44) {
             return;
           }
 
