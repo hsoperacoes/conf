@@ -7,17 +7,16 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  
+
   <title>Conferência de Nota Fiscal - HS</title>
 
-  <!-- Adicionar parâmetro de versão para forçar atualização -->
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.0" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.1" />
 
   <!-- Dynamsoft (mantido para NF) -->
-  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js?version=2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js?version=2.1"></script>
 
-  <!-- ✅ Html5Qrcode (usado para EAN) -->
+  <!-- Html5Qrcode (usado para EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
@@ -114,7 +113,7 @@
     #scanner{
       width:100%;height:100vh;position:fixed;inset:0;z-index:1000;
       display:none;justify-content:center;align-items:center;flex-direction:column;
-      background:rgba(0,0,0,.35); /* ✅ mais claro */
+      background:rgba(0,0,0,.35);
       backdrop-filter: blur(1px);
     }
     #scanner video,#scanner canvas{max-width:92vw;max-height:72vh}
@@ -156,6 +155,18 @@
     }
     .btn-ajuste:hover{background: #4b5563;}
 
+    .badge-sync{
+      display:inline-flex;align-items:center;gap:8px;
+      font-size:12px;font-weight:800;
+      background:#0b1220;border:1px solid #334155;color:#e5e7eb;
+      padding:6px 10px;border-radius:999px;
+    }
+    .dot{
+      width:8px;height:8px;border-radius:999px;background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.55);
+    }
+    .dot.off{background:#f59e0b;box-shadow:0 0 12px rgba(245,158,11,.35);}
+    .dot.err{background:#ef4444;box-shadow:0 0 12px rgba(239,68,68,.35);}
+
     /* Modal de Divergências */
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.85);
@@ -183,12 +194,12 @@
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=2.0" class="back-button">
+    <a href="index.html?version=2.1" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=2.0" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=2.1" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -198,6 +209,8 @@
         <h2>Login da Filial</h2>
         <label for="codigo-filial">Código da Filial</label>
         <input id="codigo-filial" type="text" placeholder="Ex: 293, 488, 287, 288, 761" />
+        <label for="conferente">Nome do conferente</label>
+        <input id="conferente" type="text" placeholder="Ex: Maria, João, Will..." />
         <button class="btn-full" onclick="entrar()">
           <i class="fas fa-door-open"></i> Entrar
         </button>
@@ -212,7 +225,14 @@
         </div>
 
         <h1>Conferência de Nota Fiscal</h1>
-        <div class="info-filial" id="info-filial"></div>
+
+        <div class="row" style="align-items:center; gap:10px; margin-bottom:8px">
+          <div class="info-filial" id="info-filial" style="margin:0"></div>
+          <div class="badge-sync" id="badge-sync" title="Sincronização tempo real">
+            <span class="dot off" id="dot-sync"></span>
+            <span id="txt-sync">SYNC: OFF</span>
+          </div>
+        </div>
 
         <label for="chave">Chave de Acesso (44 dígitos)</label>
         <input id="chave" type="text" maxlength="44" placeholder="Digite ou leia o código de barras da NF" />
@@ -241,14 +261,14 @@
 
             <div class="card">
               <div class="titulo">Scanner de Peças</div>
-              <div class="muted">Escaneie os EANs das etiquetas. Vai somando automático.</div>
+              <div class="muted">Escaneie os EANs das etiquetas. Vai somando automático (multiusuário).</div>
 
               <div class="linha-botoes" style="margin-top:10px">
                 <button class="btn-ok" onclick="abrirLeitor('EAN')">
                   <i class="fas fa-barcode"></i> Escanear EAN (Peças)
                 </button>
                 <button class="btn-secundario" onclick="limparScans()">
-                  <i class="fas fa-eraser"></i> Zerar Scans
+                  <i class="fas fa-eraser"></i> Zerar Scans (local)
                 </button>
               </div>
 
@@ -301,7 +321,6 @@
     <div id="scanner-view"></div>
     <div id="scanner-info" class="scanner-info"></div>
 
-    <!-- ✅ agora o clique pra liberar é na TELA TODA (não só aqui), mas mantive visual -->
     <div id="tapNext" class="tap-to-next hidden">
       <i class="fas fa-hand-pointer"></i> TOQUE EM QUALQUER LUGAR PARA LER O PRÓXIMO
       <small>O leitor está travado para evitar bips duplos.</small>
@@ -321,23 +340,17 @@
   </div>
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.0
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.1
   </footer>
 
   <script>
-    const APP_VERSION = "2.0";
+    const APP_VERSION = "2.1";
 
     const storedVersion = localStorage.getItem('hs_conferencia_version');
     if (storedVersion !== APP_VERSION) {
-      console.log('Nova versão detectada:', APP_VERSION);
       localStorage.setItem('hs_conferencia_version', APP_VERSION);
       const keysToRemove = ['hs_conferencia_cache', 'hs_conferencia_data'];
-      keysToRemove.forEach(key => {
-        if (localStorage.getItem(key)) {
-          localStorage.removeItem(key);
-          console.log('Removido cache:', key);
-        }
-      });
+      keysToRemove.forEach(key => localStorage.removeItem(key));
     }
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
@@ -347,7 +360,7 @@
     let filialAtual = "";
     let cabecalhoAtual = null;
     let itensNF = [];
-    let mapaScan = {};
+    let mapaScan = {};   // SEMPRE: chave = EAN13 limpo
     let termoFiltro = "";
 
     // Scanner
@@ -360,29 +373,70 @@
     let ultimaHoraBip = 0;
     let cacheInfoEAN = {};
 
+    // SYNC
+    let syncTimer = null;
+    let syncOn = false;
+    let lastSyncUpdatedAt = 0;
+
+    function setSyncBadge(state, text){
+      const dot = document.getElementById("dot-sync");
+      const txt = document.getElementById("txt-sync");
+      dot.classList.remove("off","err");
+      if(state === "ON"){
+        dot.classList.add(); // verde padrão
+        txt.textContent = text || "SYNC: ON";
+      }else if(state === "ERR"){
+        dot.classList.add("err");
+        txt.textContent = text || "SYNC: ERRO";
+      }else{
+        dot.classList.add("off");
+        txt.textContent = text || "SYNC: OFF";
+      }
+    }
+
+    function getConferente(){
+      return (localStorage.getItem("conferente_nome") || "").trim() || "Usuário";
+    }
+
+    function normalizarChave44(v){
+      return String(v || "").replace(/\D/g,'').trim();
+    }
+
+    function normalizarEAN13(v){
+      const only = String(v || "").replace(/\D/g,'');
+      if(only.length === 13) return only;
+      return "";
+    }
+
     // -------- Login --------
     function entrar(){
       const f = document.getElementById("codigo-filial").value.trim();
+      const c = (document.getElementById("conferente").value || "").trim();
+
       if(!filiaisValidas.includes(f)){
         alert("Código de filial inválido.");
         return;
       }
+      if(c) localStorage.setItem("conferente_nome", c);
+
       filialAtual = f;
       localStorage.setItem("filial_conf_nf", f);
       document.getElementById("login").classList.add("hidden");
       document.getElementById("principal").classList.remove("hidden");
-      document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
+      document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""} | Conferente: ${getConferente()}`;
     }
 
     function sair(){
       if(!confirm("Deseja sair?")) return;
+      pararSyncTempoReal();
       localStorage.removeItem("filial_conf_nf");
       location.reload();
     }
 
     // -------- Carregar NF --------
     async function carregarNF(){
-      const chave = document.getElementById("chave").value.trim();
+      const chaveInput = document.getElementById("chave").value.trim();
+      const chave = normalizarChave44(chaveInput);
       const erro = document.getElementById("erro");
       const loading = document.getElementById("loading");
       const painel = document.getElementById("painel");
@@ -396,6 +450,9 @@
       loading.classList.remove("hidden");
       painel.classList.add("hidden");
 
+      pararSyncTempoReal();
+      setSyncBadge("OFF","SYNC: OFF");
+
       try {
         const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${filialAtual}&chave=${chave}&v=${APP_VERSION}&t=${Date.now()}`);
         const data = await resp.json();
@@ -403,19 +460,35 @@
         if(!data.success) throw new Error(data.message || "Erro ao buscar NF.");
 
         cabecalhoAtual = data.cabecalho;
-        itensNF = data.itens;
+
+        // Normaliza itens e já traz o "jaEscaneado"
+        itensNF = (data.itens || []).map(it => ({
+          ...it,
+          ean: normalizarEAN13(it.ean) || String(it.ean || "").replace(/\D/g,'').trim(),
+          jaEscaneado: Number(it.jaEscaneado || 0) || 0
+        }));
+
+        // inicia mapaScan com o que já tem no servidor (multiusuário)
         mapaScan = {};
+        itensNF.forEach(it => {
+          const e = normalizarEAN13(it.ean);
+          if(e && it.jaEscaneado > 0) mapaScan[e] = it.jaEscaneado;
+        });
 
         document.getElementById("resumo-nf").innerHTML = `
-          <strong>NF:</strong> ${cabecalhoAtual.numeroNF} | 
-          <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente} | 
+          <strong>NF:</strong> ${cabecalhoAtual.numeroNF} |
+          <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente} |
           <strong>Data:</strong> ${cabecalhoAtual.dataEmissao}
         `;
 
         atualizarKPIs();
         document.getElementById("painel").classList.remove("hidden");
         document.getElementById("btn-enviar").classList.add("hidden");
+
         render(montarListaConferencia(false));
+
+        // ✅ liga sync tempo real (polling)
+        iniciarSyncTempoReal();
 
       } catch(err) {
         erro.textContent = err.message;
@@ -424,13 +497,75 @@
       }
     }
 
+    function iniciarSyncTempoReal(){
+      if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
+      syncOn = true;
+      setSyncBadge("ON","SYNC: ON");
+
+      // puxar já
+      sincronizarAgora();
+
+      // a cada 1200ms
+      syncTimer = setInterval(sincronizarAgora, 1200);
+    }
+
+    function pararSyncTempoReal(){
+      syncOn = false;
+      if(syncTimer){
+        clearInterval(syncTimer);
+        syncTimer = null;
+      }
+      setSyncBadge("OFF","SYNC: OFF");
+    }
+
+    async function sincronizarAgora(){
+      try{
+        if(!cabecalhoAtual) return;
+        const chave = normalizarChave44(cabecalhoAtual.chaveAcesso || document.getElementById("chave").value.trim());
+        if(chave.length !== 44) return;
+
+        const resp = await fetch(`${URL_API}?api=sincronizarBipes&chave=${chave}&v=${APP_VERSION}&t=${Date.now()}`, { cache: "no-store" });
+        const data = await resp.json();
+
+        if(!data || !data.success){
+          setSyncBadge("ERR","SYNC: ERRO");
+          return;
+        }
+
+        // evita redesenhar se não mudou
+        const updatedAt = Number(data.updatedAt || 0) || 0;
+        if(updatedAt && updatedAt === lastSyncUpdatedAt) return;
+        lastSyncUpdatedAt = updatedAt;
+
+        const serverMap = data.bipes || {};
+        const novoMapa = {};
+
+        // serverMap vem por ean limpo
+        Object.keys(serverMap).forEach(k=>{
+          const e = normalizarEAN13(k);
+          const v = Number(serverMap[k] || 0) || 0;
+          if(e && v > 0) novoMapa[e] = v;
+        });
+
+        mapaScan = novoMapa;
+
+        atualizarKPIs();
+        const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+        render(montarListaConferencia(jaConferido));
+
+        setSyncBadge("ON","SYNC: ON");
+      }catch(e){
+        setSyncBadge("ERR","SYNC: ERRO");
+      }
+    }
+
     // -------- Lógica de Conferência --------
     function atualizarKPIs(){
       let totalNF = 0;
-      itensNF.forEach(i => totalNF += i.quantidade);
+      itensNF.forEach(i => totalNF += Number(i.quantidade || 0));
 
       let totalScan = 0;
-      Object.values(mapaScan).forEach(v => totalScan += v);
+      Object.values(mapaScan).forEach(v => totalScan += Number(v || 0));
 
       document.getElementById("kpi-nf").textContent = totalNF;
       document.getElementById("kpi-scan").textContent = totalScan;
@@ -441,11 +576,13 @@
       const eansNaNota = new Set();
 
       itensNF.forEach(i => {
-        const ean = i.ean;
+        const ean = normalizarEAN13(i.ean);
+        if(!ean) return;
         eansNaNota.add(ean);
 
-        const qtdScan = mapaScan[ean] || 0;
-        const diff = qtdScan - i.quantidade;
+        const qtdScan = Number(mapaScan[ean] || 0);
+        const qtdNF = Number(i.quantidade || 0);
+        const diff = qtdScan - qtdNF;
 
         let status = "";
         if(jaConferido){
@@ -456,7 +593,7 @@
 
         lista.push({
           ean, codigo:i.codigo, cor:i.cor, tamanho:i.tamanho,
-          qtdNF:i.quantidade, qtdScan, diff, status, tipo:"nota"
+          qtdNF:qtdNF, qtdScan, diff, status, tipo:"nota"
         });
       });
 
@@ -469,8 +606,8 @@
             cor: info.cor,
             tamanho: info.tamanho,
             qtdNF: 0,
-            qtdScan: mapaScan[ean],
-            diff: mapaScan[ean],
+            qtdScan: Number(mapaScan[ean] || 0),
+            diff: Number(mapaScan[ean] || 0),
             status: jaConferido ? "EXTRA" : "",
             tipo: "extra"
           });
@@ -532,7 +669,7 @@
       const resumoDiv = document.getElementById("resumo-div");
       if(faltam > 0 || passam > 0){
         resumoDiv.innerHTML = `
-          <span style="color:#f97373">${faltam} itens FALTANDO</span>, 
+          <span style="color:#f97373">${faltam} itens FALTANDO</span>,
           <span style="color:#43b0ff">${passam} itens PASSANDO</span>
         `;
       } else {
@@ -575,7 +712,7 @@
     }
 
     function limparScans(){
-      if(!confirm("Zerar todas as contagens feitas?")) return;
+      if(!confirm("Zerar todas as contagens feitas (apenas local)?\n\nObs: como o SYNC é do servidor, ele vai repuxar os bipes do servidor em seguida.\nSe você quiser 'zerar pra todo mundo', eu te passo um ajuste no GS.")) return;
       mapaScan = {};
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
@@ -591,14 +728,18 @@
         const data = await resp.json();
 
         if(data.success){
-          const atual = mapaScan[ean] || 0;
-          const nova = prompt(`Ajustar quantidade para o EAN ${ean}:`, atual);
-          if(nova !== null){
-            mapaScan[ean] = parseInt(nova) || 0;
-            if(mapaScan[ean] <= 0) delete mapaScan[ean];
-            atualizarKPIs();
-            const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
-            render(montarListaConferencia(jaConferido));
+          const atual = Number(mapaScan[ean] || 0);
+          const novaTxt = prompt(`Ajustar quantidade para o EAN ${ean}:`, atual);
+          if(novaTxt !== null){
+            const nova = parseInt(novaTxt) || 0;
+
+            // delta (pode ser negativo) -> manda pro servidor
+            const delta = nova - atual;
+            if(delta !== 0){
+              await registrarBipeNoServidor(ean, delta);
+              // força sync agora (pra refletir no multiusuário)
+              await sincronizarAgora();
+            }
           }
         } else {
           alert("Senha incorreta!");
@@ -626,7 +767,7 @@
     }
 
     // =========================================================
-    // ✅ EAN13 ONLY (com checksum) + pega janela válida se vier "lixo junto"
+    // EAN13 ONLY (com checksum) + pega janela válida se vier "lixo junto"
     // =========================================================
     function isValidEAN13(ean){
       if(!/^\d{13}$/.test(ean)) return false;
@@ -644,12 +785,10 @@
       const only = String(texto||"").replace(/\D/g,"");
       if(only.length < 13) return "";
 
-      // tenta janelas de 13 dígitos e pega a primeira que passa no checksum
       for(let i=0; i<=only.length-13; i++){
         const cand = only.substring(i, i+13);
         if(isValidEAN13(cand)) return cand;
       }
-      // fallback: se tiver exatamente 13 mas falhou checksum, rejeita
       return "";
     }
 
@@ -682,10 +821,8 @@
         await pararScannerAtual_();
 
         if(modoScanner === "EAN"){
-          // ✅ Html5Qrcode para EAN
           await iniciarHtml5EAN_(scannerView);
         } else {
-          // ✅ Mantém Dynamsoft para NF (sem mexer no que já funcionava)
           await iniciarDynamsoftNF_(scannerView);
         }
 
@@ -696,7 +833,6 @@
     }
 
     async function pararScannerAtual_(){
-      // Para Dynamsoft
       try{
         if(scannerInstance){
           await scannerInstance.hide().catch(()=>{});
@@ -706,7 +842,6 @@
         }
       }catch(e){}
 
-      // Para Html5Qrcode
       try{
         if(html5Scanner){
           await html5Scanner.stop().catch(()=>{});
@@ -739,7 +874,6 @@
     }
 
     async function iniciarHtml5EAN_(scannerView){
-      // cria o container do html5
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(520px, 92vw)"></div>`;
 
       html5Scanner = new Html5Qrcode("html5-ean");
@@ -753,20 +887,19 @@
       await html5Scanner.start(
         { facingMode: "environment" },
         config,
-        (decodedText) => {
+        async (decodedText) => {
           if(modoScanner !== "EAN") return;
           if(scanTravado) return;
 
           const ean13 = extrairEAN13DoTexto(decodedText);
           if(!ean13) return;
 
-          // anti repetição rápida (extra segurança)
           const agora = Date.now();
           if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 600) return;
           ultimoEanBipado = ean13;
           ultimaHoraBip = agora;
 
-          adicionarScan(ean13);
+          await adicionarScanServidor(ean13, 1); // ✅ servidor + sync
           beepOk();
           travarAteToque();
         },
@@ -784,22 +917,42 @@
       document.getElementById("tapNext").classList.add("hidden");
     }
 
-    // ✅ clique em qualquer lugar do overlay do scanner libera (exceto no botão fechar)
     function clicouNaTelaScanner(ev){
       if(modoScanner !== "EAN") return;
       if(!scanTravado) return;
       liberarProximoScan();
     }
 
-    async function adicionarScan(ean){
-      mapaScan[ean] = Number(mapaScan[ean] || 0) + 1;
+    async function registrarBipeNoServidor(ean, inc){
+      if(!cabecalhoAtual) return;
+      const chave = normalizarChave44(cabecalhoAtual.chaveAcesso || document.getElementById("chave").value.trim());
+      if(chave.length !== 44) return;
 
-      const naNota = itensNF.some(i => i.ean === ean);
+      const payload = {
+        api: "registrarBipeIndividual",
+        chaveAcesso: chave,
+        ean: ean,
+        inc: inc,
+        conferente: getConferente(),
+        v: APP_VERSION
+      };
+
+      await fetch(URL_API, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }).then(r=>r.json()).catch(()=>({success:false}));
+    }
+
+    async function adicionarScanServidor(ean, inc){
+      // 1) manda pro servidor
+      await registrarBipeNoServidor(ean, inc);
+
+      // 2) puxa sync (pra refletir o total multiusuário)
+      await sincronizarAgora();
+
+      // 3) se for EAN extra, tenta buscar dados
+      const naNota = itensNF.some(i => normalizarEAN13(i.ean) === ean);
       if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
-
-      atualizarKPIs();
-      const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
-      render(montarListaConferencia(jaConferido));
     }
 
     async function buscarEANNoBanco(ean){
@@ -823,7 +976,7 @@
       }
     }
 
-    function adicionarEANManual(){
+    async function adicionarEANManual(){
       if(!cabecalhoAtual){
         alert("Carregue a NF primeiro.");
         return;
@@ -841,12 +994,12 @@
         inp.value = "";
         return;
       }
-
       ultimoEanBipado = ean13;
       ultimaHoraBip = agora;
 
-      adicionarScan(ean13);
+      await adicionarScanServidor(ean13, 1);
       beepOk();
+
       inp.value = "";
       inp.focus();
     }
@@ -876,6 +1029,9 @@
       msg.textContent = "Enviando resultado da conferência...";
       msg.classList.remove("hidden");
 
+      // força sync antes de enviar (pega tudo de todo mundo)
+      await sincronizarAgora();
+
       const listaFinal = montarListaConferencia(true);
 
       const payload = {
@@ -883,11 +1039,12 @@
         filialCodigo: filialAtual,
         filialNome: nomesFiliais[filialAtual] || "",
         numeroNF: cabecalhoAtual.numeroNF || "",
-        chaveAcesso: cabecalhoAtual.chaveAcesso || document.getElementById("chave").value.trim(),
+        chaveAcesso: normalizarChave44(cabecalhoAtual.chaveAcesso || document.getElementById("chave").value.trim()),
         dataConferencia: new Date().toISOString(),
         totalNF: Number(document.getElementById("kpi-nf").textContent || 0),
         totalScan: Number(document.getElementById("kpi-scan").textContent || 0),
         versaoApp: APP_VERSION,
+        conferente: getConferente(),
         itens: listaFinal.map(i => ({
           ean: i.ean,
           codigo: i.codigo,
@@ -918,11 +1075,14 @@
     }
 
     function limparTela(){
+      pararSyncTempoReal();
       cabecalhoAtual = null;
       mapaScan = {};
       itensNF = [];
       termoFiltro = "";
       cacheInfoEAN = {};
+      lastSyncUpdatedAt = 0;
+
       document.getElementById("chave").value = "";
       document.getElementById("filtro").value = "";
       document.getElementById("ean-manual").value = "";
@@ -936,11 +1096,15 @@
     // filtro + boot
     window.addEventListener("load", ()=>{
       const f = localStorage.getItem("filial_conf_nf");
+      const c = localStorage.getItem("conferente_nome") || "";
+
+      if(document.getElementById("conferente")) document.getElementById("conferente").value = c;
+
       if(f && filiaisValidas.includes(f)){
         filialAtual = f;
         document.getElementById("login").classList.add("hidden");
         document.getElementById("principal").classList.remove("hidden");
-        document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
+        document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""} | Conferente: ${getConferente()}`;
       }
 
       document.getElementById("filtro").addEventListener("input", (e)=>{
