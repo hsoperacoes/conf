@@ -157,12 +157,12 @@
     }
     .modal-content {
       background: #1e1e1e; padding: 25px; border-radius: 12px; width: 90%; max-width: 600px;
-      border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: 1px solid #444; box-shadow:0 10px 30px rgba(0,0,0,0.5);
     }
-    .modal-header { color: #f97373; font-size: 1.2rem; font-weight: 800; margin-bottom: 15px; text-align: center; }
-    .modal-body { max-height: 300px; overflow-y: auto; margin-bottom: 20px; font-size: 14px; }
-    .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
-    .modal-footer { text-align: center; }
+    .modal-header { color:#f97373;font-size:1.2rem;font-weight:800;margin-bottom:15px;text-align:center; }
+    .modal-body { max-height:300px;overflow-y:auto;margin-bottom:20px;font-size:14px; }
+    .modal-item { padding:10px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center; }
+    .modal-footer { text-align:center; }
 
     footer{
       text-align:center;font-size:13px;color:#ccc;background:#2c2c2c;padding:10px 15px;border-radius:6px;margin:10px;max-width:980px;width:100%;
@@ -304,9 +304,7 @@
   <div id="modal-divergencia" class="modal-overlay">
     <div class="modal-content">
       <div class="modal-header">⚠️ DIVERGÊNCIAS IDENTIFICADAS</div>
-      <div class="modal-body" id="modal-lista">
-        <!-- Itens com divergência aparecerão aqui -->
-      </div>
+      <div class="modal-body" id="modal-lista"></div>
       <div class="modal-footer">
         <p style="font-size: 13px; color: #bbb; margin-bottom: 15px;">Favor fazer uma conferência dos mesmos.</p>
         <button onclick="fecharModal()">Entendido</button>
@@ -361,6 +359,121 @@
     let ultimaHoraBip = 0;
     let cacheInfoEAN = {};
 
+    // ===== Colaborativo (SYNC_TEMPO_REAL) =====
+    let syncTimer = null;
+    let syncAtivo = false;
+
+    // ===== Scanner nativo EAN13 =====
+    let eanStream = null;
+    let eanLoopAtivo = false;
+
+    // ===== Persistência de sessão (não perder a conferência) =====
+    const STATE_KEY = "hs_conf_nf_state_v2";
+
+    function salvarEstado(){
+      try{
+        const state = {
+          filialAtual,
+          chave: (document.getElementById("chave").value || "").trim(),
+          cabecalhoAtual,
+          itensNF,
+          mapaScan,
+          cacheInfoEAN,
+          termoFiltro,
+          ts: Date.now()
+        };
+        localStorage.setItem(STATE_KEY, JSON.stringify(state));
+      }catch(e){}
+    }
+
+    function limparEstadoSalvo(){
+      try{ localStorage.removeItem(STATE_KEY); }catch(e){}
+    }
+
+    function restaurarEstadoSeExistir(){
+      try{
+        const raw = localStorage.getItem(STATE_KEY);
+        if(!raw) return false;
+
+        const state = JSON.parse(raw);
+        if(!state || !state.cabecalhoAtual || !state.itensNF) return false;
+
+        filialAtual = state.filialAtual || filialAtual;
+        cabecalhoAtual = state.cabecalhoAtual || null;
+        itensNF = Array.isArray(state.itensNF) ? state.itensNF : [];
+        mapaScan = state.mapaScan || {};
+        cacheInfoEAN = state.cacheInfoEAN || {};
+        termoFiltro = state.termoFiltro || "";
+
+        document.getElementById("chave").value = state.chave || (cabecalhoAtual?.chaveAcesso || "");
+        document.getElementById("painel").classList.remove("hidden");
+        document.getElementById("btn-enviar").classList.add("hidden");
+        document.getElementById("filtro").value = termoFiltro || "";
+
+        document.getElementById("resumo-nf").innerHTML = `
+          <strong>NF:</strong> ${cabecalhoAtual.numeroNF} | 
+          <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente} | 
+          <strong>Data:</strong> ${cabecalhoAtual.dataEmissao}
+        `;
+
+        atualizarKPIs();
+        render(montarListaConferencia(false));
+
+        // volta a sincronizar (colaborativo)
+        iniciarSync();
+
+        return true;
+      }catch(e){
+        return false;
+      }
+    }
+
+    async function registrarBipeNoServidor(ean){
+      try{
+        if(!cabecalhoAtual?.chaveAcesso) return;
+        await fetch(URL_API, {
+          method: "POST",
+          body: JSON.stringify({
+            api: "registrarBipeIndividual",
+            chaveAcesso: cabecalhoAtual.chaveAcesso,
+            ean: ean,
+            conferente: (nomesFiliais[filialAtual] || "Usuário")
+          })
+        });
+      }catch(e){}
+    }
+
+    async function sincronizarDoServidor(){
+      try{
+        if(!cabecalhoAtual?.chaveAcesso) return;
+
+        const resp = await fetch(`${URL_API}?api=sincronizarBipes&chave=${cabecalhoAtual.chaveAcesso}&t=${Date.now()}`);
+        const data = await resp.json();
+        if(!data || !data.success) return;
+
+        mapaScan = data.bipes || {};
+
+        atualizarKPIs();
+        const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+        render(montarListaConferencia(jaConferido));
+        salvarEstado();
+      }catch(e){}
+    }
+
+    function iniciarSync(){
+      pararSync();
+      syncAtivo = true;
+      syncTimer = setInterval(sincronizarDoServidor, 1200);
+    }
+
+    function pararSync(){
+      syncAtivo = false;
+      if(syncTimer){
+        clearInterval(syncTimer);
+        syncTimer = null;
+      }
+    }
+
     // -------- Login --------
     function entrar(){
       const f = document.getElementById("codigo-filial").value.trim();
@@ -373,10 +486,15 @@
       document.getElementById("login").classList.add("hidden");
       document.getElementById("principal").classList.remove("hidden");
       document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
+
+      // tenta restaurar sessão salva
+      restaurarEstadoSeExistir();
     }
 
     function sair(){
       if(!confirm("Deseja sair?")) return;
+      pararSync();
+      limparEstadoSalvo();
       localStorage.removeItem("filial_conf_nf");
       location.reload();
     }
@@ -405,8 +523,12 @@
 
         cabecalhoAtual = data.cabecalho;
         itensNF = data.itens;
+
+        // inicia com o que já existe no servidor (colaborativo)
         mapaScan = {};
-        
+        await sincronizarDoServidor();
+        iniciarSync();
+
         document.getElementById("resumo-nf").innerHTML = `
           <strong>NF:</strong> ${cabecalhoAtual.numeroNF} | 
           <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente} | 
@@ -418,6 +540,8 @@
         document.getElementById("btn-enviar").classList.add("hidden");
         
         render(montarListaConferencia(false));
+
+        salvarEstado();
 
       } catch(err) {
         erro.textContent = err.message;
@@ -552,6 +676,7 @@
       const lista = montarListaConferencia(true);
       render(lista);
       document.getElementById("btn-enviar").classList.remove("hidden");
+      salvarEstado();
       
       const divergencias = lista.filter(i => i.diff !== 0);
       if(divergencias.length > 0){
@@ -590,6 +715,7 @@
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
       render(montarListaConferencia(jaConferido));
+      salvarEstado();
     }
 
     async function ajusteManual(ean){
@@ -609,6 +735,7 @@
             atualizarKPIs();
             const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
             render(montarListaConferencia(jaConferido));
+            salvarEstado();
           }
         } else {
           alert("Senha incorreta!");
@@ -634,6 +761,87 @@
       }catch(e){}
     }
 
+    // ===== EAN13-only (normalização) =====
+    function normalizarEAN13(code){
+      const only = (code || "").replace(/\D/g,"");
+      if(only.length === 13) return only;
+      const m = only.match(/\d{13}/);
+      return m ? m[0] : "";
+    }
+
+    // ===== Scanner EAN13 nativo (gratuito) =====
+    async function iniciarScannerEAN13_Nativo(){
+      const scannerView = document.getElementById("scanner-view");
+
+      if(!("BarcodeDetector" in window)){
+        document.getElementById("scanner-info").innerHTML =
+          "Seu navegador não suporta leitor nativo. Use o campo 'Teste sem câmera' (colar EAN) por enquanto.";
+        return;
+      }
+
+      const video = document.createElement("video");
+      video.setAttribute("playsinline", true);
+      video.autoplay = true;
+      video.muted = true;
+      video.style.maxWidth = "92vw";
+      video.style.maxHeight = "72vh";
+
+      scannerView.innerHTML = "";
+      scannerView.appendChild(video);
+
+      const detector = new BarcodeDetector({ formats: ["ean_13"] });
+
+      try{
+        eanStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+        video.srcObject = eanStream;
+        await video.play();
+
+        eanLoopAtivo = true;
+
+        const loop = async () => {
+          if(!eanLoopAtivo) return;
+
+          if(scanTravado) {
+            requestAnimationFrame(loop);
+            return;
+          }
+
+          try{
+            const barcodes = await detector.detect(video);
+            if(barcodes && barcodes.length){
+              const raw = (barcodes[0].rawValue || "").trim();
+              const ean = normalizarEAN13(raw);
+              if(ean){
+                await adicionarScan(ean);               // local
+                await registrarBipeNoServidor(ean);     // servidor (colaborativo)
+                beepOk();
+                travarAteToque();
+              }
+            }
+          }catch(e){}
+
+          requestAnimationFrame(loop);
+        };
+
+        requestAnimationFrame(loop);
+      }catch(ex){
+        alert("Erro ao acessar a câmera: " + (ex.message || ex));
+      }
+    }
+
+    function pararScannerEAN13_Nativo(){
+      eanLoopAtivo = false;
+      try{
+        if(eanStream){
+          eanStream.getTracks().forEach(t => t.stop());
+          eanStream = null;
+        }
+      }catch(e){}
+    }
+
     // -------- Scanner --------
     async function abrirLeitor(modo){
       const scannerDiv = document.getElementById("scanner");
@@ -654,9 +862,10 @@
       scannerDiv.style.display = "flex";
       info.innerHTML = (modoScanner === "NF")
         ? "Aponte para o código de barras da NF (chave 44).<br/>Ao ler, fecha automaticamente."
-        : "Aponte para o EAN das peças.<br/><strong>Lê 1 vez</strong>, dá bip, e <strong>trava</strong> até você tocar para ler o próximo.";
+        : "Aponte para o EAN das peças (EAN-13).<br/><strong>Lê 1 vez</strong>, dá bip, e <strong>trava</strong> até você tocar para ler o próximo.";
 
       try{
+        // sempre mata qualquer instância anterior
         if(scannerInstance){
           await scannerInstance.hide().catch(()=>{});
           await scannerInstance.stop().catch(()=>{});
@@ -664,31 +873,28 @@
           scannerInstance = null;
         }
 
+        // ===== EAN: usa leitor gratuito nativo (EAN13 only) =====
+        if(modoScanner === "EAN"){
+          await iniciarScannerEAN13_Nativo();
+          return;
+        }
+
+        // ===== NF: mantém Dynamsoft como estava =====
         scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
         await scannerInstance.updateRuntimeSettings("speed");
 
         scannerInstance.onFrameRead = results => {
           if(!results || !results.length) return;
-          if(modoScanner === "EAN" && scanTravado) return;
 
           for (let r of results){
             const code = (r.barcodeText || "").trim();
             if(!code) continue;
 
-            if(modoScanner === "NF"){
-              const only = code.replace(/\D/g,'');
-              if(only.length >= 44){
-                document.getElementById("chave").value = only.substring(0,44);
-                beepOk();
-                fecharLeitor();
-                return;
-              }
-            } else {
-              const ean = normalizarEAN(code);
-              if(!ean) return;
-              adicionarScan(ean);
+            const only = code.replace(/\D/g,'');
+            if(only.length >= 44){
+              document.getElementById("chave").value = only.substring(0,44);
               beepOk();
-              travarAteToque();
+              fecharLeitor();
               return;
             }
           }
@@ -714,15 +920,13 @@
       tapNext.classList.add("hidden");
     }
 
-    function normalizarEAN(code){
-      const only = (code || "").replace(/\D/g,"");
-      if(only.length < 8) return "";
-      return only.length > 14 ? only.substring(0,14) : only;
-    }
-
     async function adicionarScan(ean){
+      // soma local
       mapaScan[ean] = Number(mapaScan[ean] || 0) + 1;
-      
+
+      // manda pro servidor (colaborativo)
+      await registrarBipeNoServidor(ean);
+
       const naNota = itensNF.some(i => i.ean === ean);
       if(!naNota && !cacheInfoEAN[ean]){
         buscarEANNoBanco(ean);
@@ -731,6 +935,7 @@
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
       render(montarListaConferencia(jaConferido));
+      salvarEstado();
     }
 
     async function buscarEANNoBanco(ean){
@@ -746,6 +951,7 @@
           cacheInfoEAN[ean] = data.itens[ean];
           const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
           render(montarListaConferencia(jaConferido));
+          salvarEstado();
         }
       } catch(e) {
         console.error("Erro ao buscar EAN extra:", e);
@@ -760,7 +966,7 @@
         return;
       }
       const inp = document.getElementById("ean-manual");
-      const ean = normalizarEAN(inp.value || "");
+      const ean = normalizarEAN13(inp.value || "");
       if(!ean) return;
 
       const agora = Date.now();
@@ -783,6 +989,9 @@
       const tapNext = document.getElementById("tapNext");
       tapNext.classList.add("hidden");
       scanTravado = false;
+
+      // para o scanner nativo EAN
+      pararScannerEAN13_Nativo();
 
       try{
         if(scannerInstance){
@@ -853,6 +1062,7 @@
     }
 
     function limparTela(){
+      pararSync();
       cabecalhoAtual = null;
       mapaScan = {};
       itensNF = [];
@@ -866,6 +1076,7 @@
       document.getElementById("resumo-div").textContent = "";
       document.getElementById("lista").innerHTML = "";
       document.getElementById("chave").focus();
+      limparEstadoSalvo();
     }
 
     // filtro + boot
@@ -876,12 +1087,16 @@
         document.getElementById("login").classList.add("hidden");
         document.getElementById("principal").classList.remove("hidden");
         document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
+
+        // tenta restaurar sessão salva (não perde conferência)
+        restaurarEstadoSeExistir();
       }
 
       document.getElementById("filtro").addEventListener("input", (e)=>{
         termoFiltro = e.target.value.trim();
         const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
         render(montarListaConferencia(jaConferido));
+        salvarEstado();
       });
 
       document.getElementById("ean-manual").addEventListener("keydown", (e)=>{
