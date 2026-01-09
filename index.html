@@ -21,12 +21,7 @@
       font-family: Arial, sans-serif;
       background:#000;color:#fff;margin:0;padding:0;
       min-height:100vh;display:flex;flex-direction:column;align-items:center;
-      /* MELHORIA: Brilho base aumentado */
-      filter: brightness(1.05);
     }
-
-    /* MELHORIA: Classe para brilho máximo no scanner */
-    .scanner-active { filter: brightness(1.5) !important; }
 
     .top-nav{width:100%;display:flex;justify-content:center;margin:24px 0 4px}
     .back-button{
@@ -179,8 +174,7 @@
     }
   </style>
 </head>
-<!-- MELHORIA: Clique em qualquer lugar para liberar scanner -->
-<body onclick="liberarScannerGlobal()">
+<body>
 
   <div class="top-nav">
     <a href="index.html?version=2.0" class="back-button">
@@ -263,393 +257,640 @@
                   </button>
                 </div>
               </div>
+
+              <div class="linha-botoes">
+                <button class="btn-full" onclick="fazerConferencia()">
+                  <i class="fas fa-clipboard-check"></i> Fazer Conferência
+                </button>
+                <button id="btn-enviar" class="btn-full hidden" onclick="enviarConferencia()">
+                  <i class="fas fa-paper-plane"></i> Enviar Resultado
+                </button>
+              </div>
+
+              <div id="msg" class="loading hidden"></div>
             </div>
           </div>
 
-          <div class="titulo">
-            Itens da Nota Fiscal
-            <small id="contagem-itens">0 itens</small>
-          </div>
-
           <div class="campo-pesquisa">
-            <input type="text" id="pesquisa" placeholder="🔍 Filtrar por EAN, Referência ou Tamanho..." oninput="renderizarItens()" />
+            <label for="filtro">Buscar (EAN / referência / cor / tamanho)</label>
+            <input id="filtro" type="text" placeholder="Digite para filtrar..." />
           </div>
 
-          <div id="lista-itens" class="lista"></div>
+          <div class="titulo">
+            Resultado da Conferência
+            <small id="resumo-div"></small>
+          </div>
 
-          <button class="btn-ok btn-full" style="margin-top:20px" onclick="finalizarConferencia()">
-            <i class="fas fa-check-circle"></i> Fazer Conferência
-          </button>
+          <div id="lista" class="lista"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Scanner Overlay -->
+  <!-- Scanner -->
   <div id="scanner">
-    <div class="scanner-close" onclick="fecharLeitor()">
+    <button class="scanner-close" onclick="fecharLeitor()">
       <i class="fas fa-times"></i> Fechar
-    </div>
-    <div id="video-container" style="position:relative"></div>
-    <div class="scanner-info" id="scanner-info">Aproxime o código de barras</div>
-    
-    <!-- MELHORIA: Mensagem de toque para liberar -->
-    <div class="tap-to-next" id="tap-to-next" onclick="proximoScan()">
-      <i class="fas fa-hand-pointer"></i> TOQUE AQUI PARA LIBERAR PRÓXIMO SCAN
-      <small>(Ou toque em qualquer lugar da tela)</small>
+    </button>
+    <div id="scanner-view"></div>
+    <div id="scanner-info" class="scanner-info"></div>
+    <div id="tapNext" class="tap-to-next hidden" onclick="liberarProximoScan()">
+      <i class="fas fa-hand-pointer"></i> TOQUE PARA LER O PRÓXIMO
+      <small>O leitor está travado para evitar bips duplos.</small>
     </div>
   </div>
 
   <!-- Modal de Divergências -->
-  <div id="modalDivergencias" class="modal-overlay">
+  <div id="modal-divergencia" class="modal-overlay">
     <div class="modal-content">
       <div class="modal-header">⚠️ DIVERGÊNCIAS IDENTIFICADAS</div>
-      <div id="modalCorpo" class="modal-body"></div>
+      <div class="modal-body" id="modal-lista">
+        <!-- Itens com divergência aparecerão aqui -->
+      </div>
       <div class="modal-footer">
-        <p class="muted" style="margin-bottom:15px">Favor fazer uma conferência dos mesmos.</p>
-        <button class="btn-primary" onclick="fecharModal()">Entendido</button>
+        <p style="font-size: 13px; color: #bbb; margin-bottom: 15px;">Favor fazer uma conferência dos mesmos.</p>
+        <button onclick="fecharModal()">Entendido</button>
       </div>
     </div>
   </div>
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Todos os direitos reservados.
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.0
   </footer>
 
   <script>
-    let scanner = null;
-    let modoLeitura = 'NF'; // 'NF' ou 'EAN'
-    let itensNF = [];
-    let bipes = {};
-    let dicionarioExtra = {}; // Para guardar ref/cor/tam de itens extras
-    let filialLogada = null;
-    let nfCabecalho = null;
-    let canScan = true;
-
-    // MELHORIA: Função para liberar scanner em qualquer lugar
-    function liberarScannerGlobal() {
-      if (document.getElementById('scanner').style.display === 'flex') {
-        proximoScan();
-      }
-    }
-
-    async function entrar() {
-      const cod = document.getElementById('codigo-filial').value.trim();
-      if(!cod) return alert("Digite o código da filial!");
-      filialLogada = cod;
-      document.getElementById('login').classList.add('hidden');
-      document.getElementById('principal').classList.remove('hidden');
-      document.getElementById('info-filial').innerText = "Filial: " + cod;
+    // Versão da aplicação - altere este número sempre que fizer uma atualização
+    const APP_VERSION = "2.0";
+    
+    // Verificação simples de versão sem recarregar automaticamente
+    const storedVersion = localStorage.getItem('hs_conferencia_version');
+    if (storedVersion !== APP_VERSION) {
+      console.log('Nova versão detectada:', APP_VERSION);
+      localStorage.setItem('hs_conferencia_version', APP_VERSION);
       
-      // Recuperar bipes salvos (Anti-Inatividade)
-      const salvos = localStorage.getItem('bipes_' + cod);
-      if(salvos) bipes = JSON.parse(salvos);
+      // Apenas limpa cache do localStorage se necessário
+      const keysToRemove = ['hs_conferencia_cache', 'hs_conferencia_data'];
+      keysToRemove.forEach(key => {
+        if (localStorage.getItem(key)) {
+          localStorage.removeItem(key);
+          console.log('Removido cache:', key);
+        }
+      });
     }
 
-    function sair() {
+    const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec"; // SUBSTITUA PELA SUA URL
+    const filiaisValidas = ["293", "488", "287", "288", "761"];
+    const nomesFiliais = {
+      "293": "ARTUR",
+      "488": "FLORIANO",
+      "287": "JOTA",
+      "288": "PONTO",
+      "761": "MODA"
+    };
+
+    let filialAtual = "";
+    let cabecalhoAtual = null;
+    let itensNF = [];
+    let mapaScan = {};
+    let termoFiltro = "";
+    let scannerInstance = null;
+    let modoScanner = "";
+    let scanTravado = false;
+    let audioCtx = null;
+    let ultimoEanBipado = "";
+    let ultimaHoraBip = 0;
+    let cacheInfoEAN = {};
+
+    // -------- Login --------
+    function entrar(){
+      const f = document.getElementById("codigo-filial").value.trim();
+      if(!filiaisValidas.includes(f)){
+        alert("Código de filial inválido.");
+        return;
+      }
+      filialAtual = f;
+      localStorage.setItem("filial_conf_nf", f);
+      document.getElementById("login").classList.add("hidden");
+      document.getElementById("principal").classList.remove("hidden");
+      document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
+    }
+
+    function sair(){
       if(!confirm("Deseja sair?")) return;
-      localStorage.removeItem('bipes_' + filialLogada);
+      localStorage.removeItem("filial_conf_nf");
       location.reload();
     }
 
-    async function abrirLeitor(modo) {
-      modoLeitura = modo;
-      document.getElementById('scanner').style.display = 'flex';
-      document.getElementById('scanner-info').innerText = modo === 'NF' ? "Leia a Chave da NF" : "Leia o EAN da Peça";
-      
-      // MELHORIA: Brilho máximo ao abrir scanner
-      document.body.classList.add('scanner-active');
+    // -------- Carregar NF --------
+    async function carregarNF(){
+      const chave = document.getElementById("chave").value.trim();
+      const erro = document.getElementById("erro");
+      const loading = document.getElementById("loading");
+      const painel = document.getElementById("painel");
 
-      if (!scanner) {
-        scanner = await Dynamsoft.DBR.BarcodeScanner.createInstance();
-        await scanner.setUIElement(document.getElementById('video-container'));
-        scanner.onFrameRead = results => {};
-        scanner.onUniqueRead = (txt, result) => {
-          if (!canScan) return;
-          
-          // MELHORIA: Filtro de EAN (Ignora códigos laterais com mais de 14 dígitos APENAS no modo EAN)
-          let eanLimpo = txt.replace(/\D/g, '');
-          if (modoLeitura === 'EAN' && (eanLimpo.length < 12 || eanLimpo.length > 14)) {
-            console.log("Código lateral ignorado:", eanLimpo);
-            return;
-          }
-          
-          // No modo NF, aceita a chave de 44 dígitos normalmente
-          if (modoLeitura === 'NF' && eanLimpo.length !== 44) {
-            return;
-          }
-
-          canScan = false;
-          processarLeitura(txt);
-          if (navigator.vibrate) navigator.vibrate(100);
-        };
+      if(chave.length !== 44){
+        alert("A chave deve ter 44 dígitos.");
+        return;
       }
-      await scanner.show();
-    }
 
-    function fecharLeitor() {
-      if (scanner) scanner.hide();
-      document.getElementById('scanner').style.display = 'none';
-      // MELHORIA: Remove brilho ao fechar
-      document.body.classList.remove('scanner-active');
-    }
+      erro.textContent = "";
+      loading.classList.remove("hidden");
+      painel.classList.add("hidden");
 
-    function proximoScan() {
-      canScan = true;
-      document.getElementById('scanner-info').innerText = "Aproxime o próximo código...";
-      document.getElementById('scanner-info').style.color = "#fff";
-    }
+      try {
+        const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${filialAtual}&chave=${chave}&v=${APP_VERSION}&t=${Date.now()}`);
+        const data = await resp.json();
 
-    function processarLeitura(txt) {
-      if (modoLeitura === 'NF') {
-        document.getElementById('chave').value = txt;
-        fecharLeitor();
-        carregarNF();
-      } else {
-        const ean = txt.replace(/\D/g, '');
-        bipes[ean] = (bipes[ean] || 0) + 1;
+        if(!data.success) throw new Error(data.message || "Erro ao buscar NF.");
+
+        cabecalhoAtual = data.cabecalho;
+        itensNF = data.itens;
+        mapaScan = {};
         
-        // Salva no localStorage (Anti-Inatividade)
-        localStorage.setItem('bipes_' + filialLogada, JSON.stringify(bipes));
-
-        // Sincroniza com o servidor (Colaborativo)
-        google.script.run.registrarBipeIndividual({
-          chaveAcesso: nfCabecalho.chaveAcesso,
-          ean: ean,
-          conferente: "Estoquista"
-        });
-
-        document.getElementById('scanner-info').innerText = "LIDO: " + ean;
-        document.getElementById('scanner-info').style.color = "#4ade80";
+        document.getElementById("resumo-nf").innerHTML = `
+          <strong>NF:</strong> ${cabecalhoAtual.numeroNF} | 
+          <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente} | 
+          <strong>Data:</strong> ${cabecalhoAtual.dataEmissao}
+        `;
         
         atualizarKPIs();
-        renderizarItens();
+        painel.classList.remove("hidden");
+        document.getElementById("btn-enviar").classList.add("hidden");
+        
+        render(montarListaConferencia(false));
+
+      } catch(err) {
+        erro.textContent = err.message;
+      } finally {
+        loading.classList.add("hidden");
       }
     }
 
-    function carregarNF() {
-      const chave = document.getElementById('chave').value.trim();
-      if (chave.length !== 44) return alert("Chave deve ter 44 dígitos!");
-
-      document.getElementById('loading').classList.remove('hidden');
-      document.getElementById('erro').innerText = "";
-      document.getElementById('painel').classList.add('hidden');
-
-      google.script.run.withSuccessHandler(res => {
-        document.getElementById('loading').classList.add('hidden');
-        if (res.success) {
-          nfCabecalho = res.cabecalho;
-          itensNF = res.itens;
-          dicionarioExtra = res.itensExtra || {};
-          
-          // Sincroniza bipes já feitos por outros (Colaborativo)
-          itensNF.forEach(it => {
-            const eanLimpo = it.ean.replace(/\D/g, '');
-            if (it.jaEscaneado > 0) {
-              bipes[eanLimpo] = Math.max(bipes[eanLimpo] || 0, it.jaEscaneado);
-            }
-          });
-
-          document.getElementById('painel').classList.remove('hidden');
-          document.getElementById('resumo-nf').innerText = `NF: ${res.cabecalho.numeroNF} | ${res.cabecalho.nomeEmitente}`;
-          atualizarKPIs();
-          renderizarItens();
-        } else {
-          document.getElementById('erro').innerText = res.message;
-        }
-      }).consultarConferenciaNF(filialLogada, chave);
-    }
-
-    function atualizarKPIs() {
-      const totalNF = itensNF.reduce((acc, cur) => acc + cur.quantidade, 0);
+    // -------- Lógica de Conferência --------
+    function atualizarKPIs(){
+      let totalNF = 0;
+      itensNF.forEach(i => totalNF += i.quantidade);
+      
       let totalScan = 0;
-      for (let ean in bipes) totalScan += bipes[ean];
+      Object.values(mapaScan).forEach(v => totalScan += v);
 
-      document.getElementById('kpi-nf').innerText = totalNF;
-      document.getElementById('kpi-scan').innerText = totalScan;
+      document.getElementById("kpi-nf").textContent = totalNF;
+      document.getElementById("kpi-scan").textContent = totalScan;
     }
 
-    function renderizarItens() {
-      const lista = document.getElementById('lista-itens');
-      const busca = document.getElementById('pesquisa').value.toLowerCase();
-      lista.innerHTML = "";
+    function montarListaConferencia(jaConferido){
+      const lista = [];
+      const eansNaNota = new Set();
 
-      // 1. Itens que estão na NF
-      itensNF.forEach(it => {
-        const eanLimpo = it.ean.replace(/\D/g, '');
-        const scan = bipes[eanLimpo] || 0;
-        const diff = scan - it.quantidade;
+      itensNF.forEach(i => {
+        const ean = i.ean;
+        eansNaNota.add(ean);
+        const qtdScan = mapaScan[ean] || 0;
+        const diff = qtdScan - i.quantidade;
         
-        if (busca && !it.ean.includes(busca) && !it.codigo.toLowerCase().includes(busca)) return;
+        let status = "";
+        if(jaConferido){
+          if(diff === 0) status = "OK";
+          else if(diff < 0) status = "FALTANDO";
+          else status = "PASSANDO";
+        }
 
-        const div = document.createElement('div');
+        lista.push({
+          ean,
+          codigo: i.codigo,
+          cor: i.cor,
+          tamanho: i.tamanho,
+          qtdNF: i.quantidade,
+          qtdScan,
+          diff,
+          status,
+          tipo: "nota"
+        });
+      });
+
+      Object.keys(mapaScan).forEach(ean => {
+        if(!eansNaNota.has(ean)){
+          const info = cacheInfoEAN[ean] || { codigo: "---", cor: "---", tamanho: "---" };
+          lista.push({
+            ean,
+            codigo: info.codigo,
+            cor: info.cor,
+            tamanho: info.tamanho,
+            qtdNF: 0,
+            qtdScan: mapaScan[ean],
+            diff: mapaScan[ean],
+            status: jaConferido ? "EXTRA" : "",
+            tipo: "extra"
+          });
+        }
+      });
+
+      if(termoFiltro){
+        const t = termoFiltro.toLowerCase();
+        return lista.filter(i => 
+          i.ean.includes(t) || 
+          String(i.codigo).toLowerCase().includes(t) || 
+          String(i.cor).toLowerCase().includes(t) || 
+          String(i.tamanho).toLowerCase().includes(t)
+        );
+      }
+
+      return lista;
+    }
+
+    function render(lista){
+      const container = document.getElementById("lista");
+      container.innerHTML = "";
+
+      let faltam = 0;
+      let passam = 0;
+
+      lista.forEach(i => {
+        if(i.status === "FALTANDO") faltam++;
+        if(i.status === "PASSANDO" || i.status === "EXTRA") passam++;
+
+        const div = document.createElement("div");
         div.className = "item";
         
-        let statusClass = "ok";
-        let statusText = "CONFERIDO";
-        if (diff < 0) { statusClass = "faltando"; statusText = "FALTANDO"; }
-        if (diff > 0) { statusClass = "passando"; statusText = "PASSANDO"; }
+        let badgeClass = "badge";
+        if(i.status === "OK") badgeClass += " ok";
+        else if(i.status === "FALTANDO") badgeClass += " faltando";
+        else if(i.status === "PASSANDO") badgeClass += " passando";
+        else if(i.status === "EXTRA") badgeClass += " extra";
 
         div.innerHTML = `
           <div class="row">
-            <strong>EAN: ${it.ean}</strong>
-            <span class="badge ${statusClass}">${statusText}</span>
+            <strong>EAN: ${i.ean}</strong>
+            ${i.status ? `<span class="${badgeClass}">${i.status}</span>` : ""}
+            <button class="btn-ajuste" onclick="ajusteManual('${i.ean}')">
+              <i class="fas fa-edit"></i> Ajustar
+            </button>
           </div>
-          <div class="muted">Ref/Cor: ${it.codigo} / ${it.cor}  Tam: ${it.tamanho}</div>
-          <div class="row">
-            <span>NF: ${it.quantidade} | Scan: ${scan}</span>
-            <span style="font-weight:bold; color:${diff === 0 ? '#4ade80' : '#f87171'}">Dif: ${diff}</span>
+          <div class="row muted">
+            <span>Ref/Cor: ${i.codigo} / ${i.cor}</span>
+            <span>Tam: ${i.tamanho}</span>
+            <span>NF: ${i.qtdNF}</span>
+            <span>Scan: ${i.qtdScan}</span>
+            <span>Dif: ${i.diff}</span>
           </div>
         `;
-        lista.appendChild(div);
+        container.appendChild(div);
       });
 
-      // 2. Itens Extras (Bipados mas não estão na NF)
-      for (let ean in bipes) {
-        const eanLimpo = ean.replace(/\D/g, '');
-        const naNF = itensNF.some(it => it.ean.replace(/\D/g, '') === eanLimpo);
-        if (!naNF) {
-          const info = dicionarioExtra[ean] || dicionarioExtra[eanLimpo] || { codigo: '---', cor: '---', tamanho: '---' };
-          const div = document.createElement('div');
-          div.className = "item";
-          div.innerHTML = `
-            <div class="row">
-              <strong>EAN: ${ean}</strong>
-              <span class="badge extra">EXTRA</span>
-            </div>
-            <div class="muted">Ref/Cor: ${info.codigo} / ${info.cor}  Tam: ${info.tamanho}</div>
-            <div class="row">
-              <span>NF: 0 | Scan: ${bipes[ean]}</span>
-              <span style="font-weight:bold; color:#60a5fa">Dif: ${bipes[ean]}</span>
-            </div>
-          `;
-          lista.appendChild(div);
-        }
-      }
-      
-      document.getElementById('contagem-itens').innerText = lista.children.length + " itens exibidos";
-    }
-
-    function adicionarEANManual() {
-      const input = document.getElementById('ean-manual');
-      const ean = input.value.trim().replace(/\D/g, '');
-      if (!ean) return;
-      
-      // MELHORIA: Filtro de EAN no manual também
-      if (ean.length < 12 || ean.length > 14) return alert("Código lateral ou inválido!");
-
-      document.getElementById('buffer-ean').classList.remove('hidden');
-      
-      // Busca info no banco se for extra
-      google.script.run.withSuccessHandler(res => {
-        document.getElementById('buffer-ean').classList.add('hidden');
-        if (res.success && res.itens[ean]) {
-          dicionarioExtra[ean] = res.itens[ean];
-        }
-        bipes[ean] = (bipes[ean] || 0) + 1;
-        localStorage.setItem('bipes_' + filialLogada, JSON.stringify(bipes));
-        input.value = "";
-        atualizarKPIs();
-        renderizarItens();
-      }).buscarInfoEAN({ eans: [ean] });
-    }
-
-    function limparScans() {
-      if (!confirm("Deseja zerar todos os bipes desta nota?")) return;
-      bipes = {};
-      localStorage.removeItem('bipes_' + filialLogada);
-      atualizarKPIs();
-      renderizarItens();
-    }
-
-    function finalizarConferencia() {
-      const divergencias = [];
-      
-      // Verifica itens da NF
-      itensNF.forEach(it => {
-        const scan = bipes[it.ean.replace(/\D/g, '')] || 0;
-        if (scan !== it.quantidade) {
-          divergencias.push({ desc: `${it.codigo} / ${it.cor} / ${it.tamanho}`, diff: scan - it.quantidade });
-        }
-      });
-
-      // Verifica extras
-      for (let ean in bipes) {
-        const naNF = itensNF.some(it => it.ean.replace(/\D/g, '') === ean.replace(/\D/g, ''));
-        if (!naNF) {
-          const info = dicionarioExtra[ean] || { codigo: '---', cor: '---', tamanho: '---' };
-          divergencias.push({ desc: `${info.codigo} / ${info.cor} / ${info.tamanho} (EXTRA)`, diff: bipes[ean] });
-        }
-      }
-
-      if (divergencias.length > 0) {
-        mostrarModal(divergencias);
+      const resumoDiv = document.getElementById("resumo-div");
+      if(faltam > 0 || passam > 0){
+        resumoDiv.innerHTML = `
+          <span style="color:#f97373">${faltam} itens FALTANDO</span>, 
+          <span style="color:#43b0ff">${passam} itens PASSANDO</span>
+        `;
       } else {
-        enviarResultado();
+        resumoDiv.textContent = "";
       }
     }
 
-    function mostrarModal(divs) {
-      const corpo = document.getElementById('modalCorpo');
-      corpo.innerHTML = divs.map(d => `
-        <div class="modal-item">
-          <span>${d.desc}</span>
-          <strong style="color:${d.diff > 0 ? '#60a5fa' : '#f87171'}">Dif: ${d.diff}</strong>
-        </div>
-      `).join('');
-      document.getElementById('modalDivergencias').style.display = 'flex';
-    }
-
-    function fecharModal() {
-      document.getElementById('modalDivergencias').style.display = 'none';
-      if (confirm("Deseja enviar o relatório mesmo com divergências?")) {
-        enviarResultado();
+    function fazerConferencia(){
+      const lista = montarListaConferencia(true);
+      render(lista);
+      document.getElementById("btn-enviar").classList.remove("hidden");
+      
+      const divergencias = lista.filter(i => i.diff !== 0);
+      if(divergencias.length > 0){
+        abrirModal(divergencias);
       }
     }
 
-    function enviarResultado() {
+    function abrirModal(divergencias){
+      const modal = document.getElementById("modal-divergencia");
+      const listaModal = document.getElementById("modal-lista");
+      listaModal.innerHTML = "";
+      
+      divergencias.forEach(i => {
+        const div = document.createElement("div");
+        div.className = "modal-item";
+        const cor = i.diff < 0 ? "#f97373" : "#43b0ff";
+        const labelExtra = i.status === "EXTRA" ? " <small style='color:#bbb'>(EXTRA)</small>" : "";
+        
+        div.innerHTML = `
+          <span><strong>${i.codigo} / ${i.cor} / ${i.tamanho}</strong>${labelExtra}</span>
+          <span style="color:${cor}">Dif: ${i.diff}</span>
+        `;
+        listaModal.appendChild(div);
+      });
+      
+      modal.style.display = "flex";
+    }
+
+    function fecharModal(){
+      document.getElementById("modal-divergencia").style.display = "none";
+    }
+
+    function limparScans(){
+      if(!confirm("Zerar todas as contagens feitas?")) return;
+      mapaScan = {};
+      atualizarKPIs();
+      const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+      render(montarListaConferencia(jaConferido));
+    }
+
+    async function ajusteManual(ean){
+      const senha = prompt("Digite a senha para ajuste manual:");
+      if(!senha) return;
+
+      try {
+        const resp = await fetch(`${URL_API}?api=validarSenha&senha=${senha}&v=${APP_VERSION}&t=${Date.now()}`);
+        const data = await resp.json();
+
+        if(data.success){
+          const atual = mapaScan[ean] || 0;
+          const nova = prompt(`Ajustar quantidade para o EAN ${ean}:`, atual);
+          if(nova !== null){
+            mapaScan[ean] = parseInt(nova) || 0;
+            if(mapaScan[ean] <= 0) delete mapaScan[ean];
+            atualizarKPIs();
+            const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+            render(montarListaConferencia(jaConferido));
+          }
+        } else {
+          alert("Senha incorreta!");
+        }
+      } catch(e) {
+        alert("Erro ao validar senha.");
+      }
+    }
+
+    // -------- Beep --------
+    function beepOk(){
+      try{
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = "square";
+        o.frequency.value = 880;
+        g.gain.value = 0.08;
+        o.connect(g);
+        g.connect(audioCtx.destination);
+        o.start();
+        setTimeout(()=>{ o.stop(); }, 120);
+      }catch(e){}
+    }
+
+    // -------- Scanner --------
+    async function abrirLeitor(modo){
+      const scannerDiv = document.getElementById("scanner");
+      const scannerView = document.getElementById("scanner-view");
+      const info = document.getElementById("scanner-info");
+      const tapNext = document.getElementById("tapNext");
+
+      modoScanner = modo;
+      scanTravado = false;
+      tapNext.classList.add("hidden");
+
+      if(modoScanner === "EAN" && !cabecalhoAtual){
+        alert("Carregue a NF primeiro.");
+        return;
+      }
+
+      scannerView.innerHTML = "";
+      scannerDiv.style.display = "flex";
+      info.innerHTML = (modoScanner === "NF")
+        ? "Aponte para o código de barras da NF (chave 44).<br/>Ao ler, fecha automaticamente."
+        : "Aponte para o EAN das peças.<br/><strong>Lê 1 vez</strong>, dá bip, e <strong>trava</strong> até você tocar para ler o próximo.";
+
+      try{
+        if(scannerInstance){
+          await scannerInstance.hide().catch(()=>{});
+          await scannerInstance.stop().catch(()=>{});
+          await scannerInstance.destroyContext().catch(()=>{});
+          scannerInstance = null;
+        }
+
+        scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
+        await scannerInstance.updateRuntimeSettings("speed");
+
+        scannerInstance.onFrameRead = results => {
+          if(!results || !results.length) return;
+          if(modoScanner === "EAN" && scanTravado) return;
+
+          for (let r of results){
+            const code = (r.barcodeText || "").trim();
+            if(!code) continue;
+
+            if(modoScanner === "NF"){
+              const only = code.replace(/\D/g,'');
+              if(only.length >= 44){
+                document.getElementById("chave").value = only.substring(0,44);
+                beepOk();
+                fecharLeitor();
+                return;
+              }
+            } else {
+              const ean = normalizarEAN(code);
+              if(!ean) return;
+              adicionarScan(ean);
+              beepOk();
+              travarAteToque();
+              return;
+            }
+          }
+        };
+
+        await scannerInstance.show(scannerView);
+
+      }catch(ex){
+        alert("Erro ao iniciar o leitor: " + (ex.message || ex));
+        scannerDiv.style.display = "none";
+      }
+    }
+
+    function travarAteToque(){
+      const tapNext = document.getElementById("tapNext");
+      scanTravado = true;
+      tapNext.classList.remove("hidden");
+    }
+
+    function liberarProximoScan(){
+      const tapNext = document.getElementById("tapNext");
+      scanTravado = false;
+      tapNext.classList.add("hidden");
+    }
+
+    function normalizarEAN(code){
+      const only = (code || "").replace(/\D/g,"");
+      if(only.length < 8) return "";
+      return only.length > 14 ? only.substring(0,14) : only;
+    }
+
+    async function adicionarScan(ean){
+      mapaScan[ean] = Number(mapaScan[ean] || 0) + 1;
+      
+      const naNota = itensNF.some(i => i.ean === ean);
+      if(!naNota && !cacheInfoEAN[ean]){
+        buscarEANNoBanco(ean);
+      }
+
+      atualizarKPIs();
+      const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+      render(montarListaConferencia(jaConferido));
+    }
+
+    async function buscarEANNoBanco(ean){
+      const buffer = document.getElementById("buffer-ean");
+      buffer.classList.remove("hidden");
+      try {
+        const resp = await fetch(URL_API, {
+          method: "POST",
+          body: JSON.stringify({ api: "buscarInfoEAN", filial: filialAtual, eans: [ean], v: APP_VERSION })
+        });
+        const data = await resp.json();
+        if(data.success && data.itens[ean]){
+          cacheInfoEAN[ean] = data.itens[ean];
+          const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+          render(montarListaConferencia(jaConferido));
+        }
+      } catch(e) {
+        console.error("Erro ao buscar EAN extra:", e);
+      } finally {
+        buffer.classList.add("hidden");
+      }
+    }
+
+    function adicionarEANManual(){
+      if(!cabecalhoAtual){
+        alert("Carregue a NF primeiro.");
+        return;
+      }
+      const inp = document.getElementById("ean-manual");
+      const ean = normalizarEAN(inp.value || "");
+      if(!ean) return;
+
+      const agora = Date.now();
+      if (ean === ultimoEanBipado && (agora - ultimaHoraBip) < 500) {
+        inp.value = "";
+        return;
+      }
+
+      ultimoEanBipado = ean;
+      ultimaHoraBip = agora;
+
+      adicionarScan(ean);
+      beepOk();
+      inp.value = "";
+      inp.focus();
+    }
+
+    async function fecharLeitor(){
+      const scannerDiv = document.getElementById("scanner");
+      const tapNext = document.getElementById("tapNext");
+      tapNext.classList.add("hidden");
+      scanTravado = false;
+
+      try{
+        if(scannerInstance){
+          await scannerInstance.hide();
+          await scannerInstance.stop();
+          await scannerInstance.destroyContext();
+          scannerInstance = null;
+        }
+      }catch(e){}
+      scannerDiv.style.display = "none";
+    }
+
+    // -------- Envio e Limpeza --------
+    async function enviarConferencia(){
+      const erro = document.getElementById("erro");
+      const msg = document.getElementById("msg");
+      erro.textContent = "";
+
+      if(!cabecalhoAtual){
+        erro.textContent = "Nenhuma NF carregada.";
+        return;
+      }
+
+      if(!confirm("Deseja enviar o resultado da conferência para o banco?")) return;
+
+      msg.textContent = "Enviando resultado da conferência...";
+      msg.classList.remove("hidden");
+
+      const listaFinal = montarListaConferencia(true);
+
       const payload = {
-        api: 'registrarConferenciaNF',
-        filialCodigo: filialLogada,
-        numeroNF: nfCabecalho.numeroNF,
-        chaveAcesso: nfCabecalho.chaveAcesso,
-        totalNF: document.getElementById('kpi-nf').innerText,
-        totalScan: document.getElementById('kpi-scan').innerText,
-        conferente: "Estoquista",
-        itens: []
+        api: "registrarConferenciaNF",
+        filialCodigo: filialAtual,
+        filialNome: nomesFiliais[filialAtual] || "",
+        numeroNF: cabecalhoAtual.numeroNF || "",
+        chaveAcesso: cabecalhoAtual.chaveAcesso || document.getElementById("chave").value.trim(),
+        dataConferencia: new Date().toISOString(),
+        totalNF: Number(document.getElementById("kpi-nf").textContent || 0),
+        totalScan: Number(document.getElementById("kpi-scan").textContent || 0),
+        versaoApp: APP_VERSION,
+        itens: listaFinal.map(i => ({
+          ean: i.ean,
+          codigo: i.codigo,
+          cor: i.cor,
+          tamanho: i.tamanho,
+          qtdNF: i.qtdNF,
+          qtdScan: i.qtdScan,
+          diff: i.diff,
+          status: i.status
+        }))
       };
 
-      // Monta lista final
-      itensNF.forEach(it => {
-        const scan = bipes[it.ean.replace(/\D/g, '')] || 0;
-        payload.itens.push({
-          ean: it.ean, codigo: it.codigo, cor: it.cor, tamanho: it.tamanho,
-          qtdNF: it.quantidade, qtdScan: scan, diff: scan - it.quantidade,
-          status: scan === it.quantidade ? 'OK' : (scan < it.quantidade ? 'FALTANDO' : 'PASSANDO')
+      try{
+        const resp = await fetch(URL_API, {
+          method: "POST",
+          body: JSON.stringify(payload)
         });
-      });
+        const data = await resp.json();
+        if(!data.success) throw new Error(data.message || "Falha ao registrar conferência.");
+        
+        alert("Conferência registrada com sucesso!");
+        limparTela();
+      }catch(err){
+        erro.textContent = "Erro ao enviar: " + (err.message || err);
+      }finally{
+        msg.classList.add("hidden");
+      }
+    }
 
-      for (let ean in bipes) {
-        const naNF = itensNF.some(it => it.ean.replace(/\D/g, '') === ean.replace(/\D/g, ''));
-        if (!naNF) {
-          const info = dicionarioExtra[ean] || { codigo: '---', cor: '---', tamanho: '---' };
-          payload.itens.push({
-            ean: ean, codigo: info.codigo, cor: info.cor, tamanho: info.tamanho,
-            qtdNF: 0, qtdScan: bipes[ean], diff: bipes[ean], status: 'EXTRA'
-          });
-        }
+    function limparTela(){
+      cabecalhoAtual = null;
+      mapaScan = {};
+      itensNF = [];
+      termoFiltro = "";
+      cacheInfoEAN = {};
+      document.getElementById("chave").value = "";
+      document.getElementById("filtro").value = "";
+      document.getElementById("ean-manual").value = "";
+      document.getElementById("painel").classList.add("hidden");
+      document.getElementById("btn-enviar").classList.add("hidden");
+      document.getElementById("resumo-div").textContent = "";
+      document.getElementById("lista").innerHTML = "";
+      document.getElementById("chave").focus();
+    }
+
+    // filtro + boot
+    window.addEventListener("load", ()=>{
+      const f = localStorage.getItem("filial_conf_nf");
+      if(f && filiaisValidas.includes(f)){
+        filialAtual = f;
+        document.getElementById("login").classList.add("hidden");
+        document.getElementById("principal").classList.remove("hidden");
+        document.getElementById("info-filial").textContent = `Filial logada: ${f} - ${nomesFiliais[f] || ""}`;
       }
 
-      google.script.run.withSuccessHandler(res => {
-        if (res.success) {
-          alert("Conferência enviada com sucesso!");
-          localStorage.removeItem('bipes_' + filialLogada);
-          location.reload();
-        } else {
-          alert("Erro ao enviar: " + res.message);
+      document.getElementById("filtro").addEventListener("input", (e)=>{
+        termoFiltro = e.target.value.trim();
+        const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+        render(montarListaConferencia(jaConferido));
+      });
+
+      document.getElementById("ean-manual").addEventListener("keydown", (e)=>{
+        if(e.key === "Enter"){
+          e.preventDefault();
+          adicionarEANManual();
         }
-      }).registrarConferenciaNF(payload);
-    }
+      });
+    });
   </script>
 </body>
 </html>
