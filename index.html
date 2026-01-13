@@ -167,7 +167,7 @@
     }
     .modal-header { color: #f97373; font-size: 1.2rem; font-weight: 800; margin-bottom: 15px; text-align: center; }
     .modal-body { max-height: 300px; overflow-y: auto; margin-bottom: 20px; font-size: 14px; }
-    .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; gap:10px; }
     .modal-footer { text-align: center; }
 
     footer{
@@ -309,7 +309,6 @@
     <div id="scanner-view"></div>
     <div id="scanner-info" class="scanner-info"></div>
 
-    <!-- ✅ trava visual (mas o clique é na tela toda) -->
     <div id="tapNext" class="tap-to-next hidden">
       <i class="fas fa-hand-pointer"></i> TOQUE EM QUALQUER LUGAR PARA LER O PRÓXIMO
       <small>O leitor está travado para evitar bips duplos.</small>
@@ -344,7 +343,7 @@
       });
     }
 
-    // ✅ URL do seu Apps Script (confirmada)
+    // ✅ URL do seu Apps Script
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
     const filiaisValidas = ["293", "488", "287", "288", "761"];
@@ -355,7 +354,7 @@
 
     let cabecalhoAtual = null;
     let itensNF = [];
-    let mapaScan = {};        // ✅ espelho do SERVIDOR (sync)
+    let mapaScan = {};        // espelho do servidor (sync)
     let termoFiltro = "";
 
     // Scanner
@@ -373,6 +372,11 @@
     let syncTimer = null;
     let syncAtivo = false;
     let ultimoSyncHash = "";
+
+    // ✅ regra: só aceitar EAN13 Hering (prefixo 7900/7909)
+    function eanPermitido_(ean13){
+      return /^7900|^7909/.test(String(ean13||""));
+    }
 
     // ---------------- Login ----------------
     function entrar(){
@@ -443,7 +447,7 @@
         cabecalhoAtual = data.cabecalho;
         itensNF = data.itens || [];
 
-        // ✅ zera local (servidor vai preencher pelo sync)
+        // zera local (servidor manda via sync)
         mapaScan = {};
 
         document.getElementById("resumo-nf").innerHTML = `
@@ -457,7 +461,6 @@
         document.getElementById("btn-enviar").classList.add("hidden");
         render(montarListaConferencia(false));
 
-        // ✅ inicia sync em tempo real (a fonte da verdade)
         iniciarSync_();
 
       } catch(err) {
@@ -595,7 +598,7 @@
       if(divergencias.length > 0) abrirModal(divergencias);
     }
 
-    // ✅ Modal: agora mostra "FALTANDO/PASSANDO" + quantidade (em vez de "Dif: X")
+    // ✅ MODAL: FALTANDO / PASSANDO com quantidade (não “Dif”)
     function abrirModal(divergencias){
       const modal = document.getElementById("modal-divergencia");
       const listaModal = document.getElementById("modal-lista");
@@ -605,18 +608,14 @@
         const div = document.createElement("div");
         div.className = "modal-item";
 
-        const abs = Math.abs(i.diff);
-        let texto = "";
-        let cor = "#43b0ff";
+        let label = "";
+        let cor = "#cbd5e1";
 
-        if (i.status === "EXTRA") {
-          texto = `PASSANDO: ${abs}`;
-          cor = "#43b0ff";
-        } else if (i.diff < 0) {
-          texto = `FALTANDO: ${abs}`;
+        if(i.diff < 0){
+          label = `FALTANDO: ${Math.abs(i.diff)}`;
           cor = "#f97373";
-        } else if (i.diff > 0) {
-          texto = `PASSANDO: ${abs}`;
+        } else {
+          label = `PASSANDO: ${i.diff}`;
           cor = "#43b0ff";
         }
 
@@ -624,7 +623,7 @@
 
         div.innerHTML = `
           <span><strong>${i.codigo} / ${i.cor} / ${i.tamanho}</strong>${labelExtra}</span>
-          <span style="color:${cor}; font-weight:900">${texto}</span>
+          <span style="color:${cor}; font-weight:800">${label}</span>
         `;
         listaModal.appendChild(div);
       });
@@ -636,40 +635,36 @@
       document.getElementById("modal-divergencia").style.display = "none";
     }
 
-    // ✅ Zerar scans: agora apaga NO SERVIDOR (SYNC_TEMPO_REAL) também
+    // ✅ Zerar Scans: AGORA zera no servidor também
     async function limparScans(){
       if(!cabecalhoAtual) return;
       if(!confirm("Zerar TODA a contagem dessa NF (para todos os usuários)?")) return;
 
       const chave = String(cabecalhoAtual.chaveAcesso || "").trim();
-      if(!chave || chave.length !== 44){
-        alert("Chave inválida para zerar.");
-        return;
-      }
+      if(!chave) return;
 
       try{
-        // ✅ apaga no banco (SYNC_TEMPO_REAL) + limpa cache do servidor
+        // chama endpoint do servidor para limpar aba + cache
         const resp = await fetch(URL_API, {
-          method: "POST",
-          body: JSON.stringify({ api: "zerarBipes", chaveAcesso: chave, v: APP_VERSION })
+          method:"POST",
+          body: JSON.stringify({ api:"zerarSyncNF", chaveAcesso: chave, v: APP_VERSION })
         });
         const data = await resp.json();
         if(!data.success) throw new Error(data.message || "Falha ao zerar no servidor.");
-
-        // ✅ zera local e força refresh
-        mapaScan = {};
-        atualizarKPIs();
-
-        const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
-        render(montarListaConferencia(jaConferido));
-
-        // puxa sync imediatamente (vai vir zerado)
-        puxarSyncAgora_();
-
-        alert("Scans zerados no BANCO e na tela.");
       }catch(e){
-        alert("Erro ao zerar no banco: " + (e.message || e));
+        alert("Não consegui zerar no servidor: " + (e.message || e));
+        return;
       }
+
+      // limpa local
+      mapaScan = {};
+      atualizarKPIs();
+      const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+      render(montarListaConferencia(jaConferido));
+
+      // força sync imediato
+      puxarSyncAgora_();
+      alert("Zerado (servidor + tela).");
     }
 
     async function ajusteManual(ean){
@@ -741,7 +736,7 @@
     }
 
     // =========================================================
-    // ✅ SYNC TEMPO REAL (puxa do banco e substitui o mapaScan)
+    // SYNC TEMPO REAL (puxa do banco e substitui o mapaScan)
     // =========================================================
     function iniciarSync_(){
       if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
@@ -749,10 +744,8 @@
       syncAtivo = true;
       ultimoSyncHash = "";
 
-      // primeira puxada imediata
       puxarSyncAgora_();
 
-      // loop
       syncTimer = setInterval(() => {
         puxarSyncAgora_();
       }, 1100);
@@ -787,8 +780,8 @@
         if(!data || !data.success) throw new Error("sync fail");
 
         const bipes = data.bipes || {};
-        const hash = _hashMapa_(bipes);
 
+        const hash = _hashMapa_(bipes);
         if(hash !== ultimoSyncHash){
           ultimoSyncHash = hash;
 
@@ -909,11 +902,8 @@
           const ean13 = extrairEAN13DoTexto(decodedText);
           if(!ean13) return;
 
-          // ✅ FILTRO: só conta EANs de mercadoria (7900/7909)
-          if(!(ean13.startsWith("7900") || ean13.startsWith("7909"))) {
-            // não contabiliza, não bip, não registra, não joga no banco
-            return;
-          }
+          // ✅ bloqueia QUALQUER EAN13 que não seja 7900/7909
+          if(!eanPermitido_(ean13)) return;
 
           // anti repetição rápida
           const agora = Date.now();
@@ -921,18 +911,22 @@
           ultimoEanBipado = ean13;
           ultimaHoraBip = agora;
 
-          // ✅ trava IMEDIATAMENTE (antes do await) — resolve o “continua bipando”
-          scanTravado = true;
-          document.getElementById("tapNext").classList.remove("hidden");
+          // ✅ trava imediatamente ANTES de qualquer await (corrige “continua bipando”)
+          travarAteToque();
 
-          // bip na hora (feedback imediato)
-          beepOk();
-
-          // registra no servidor (multiusuário)
+          // registra no servidor
           await registrarBipeServidor_(ean13);
+
+          beepOk();
+          // continua travado até toque
         },
         ()=>{}
       );
+    }
+
+    function travarAteToque(){
+      scanTravado = true;
+      document.getElementById("tapNext").classList.remove("hidden");
     }
 
     function liberarProximoScan(){
@@ -940,7 +934,6 @@
       document.getElementById("tapNext").classList.add("hidden");
     }
 
-    // ✅ clique em qualquer lugar do overlay libera (exceto no botão fechar)
     function clicouNaTelaScanner(ev){
       if(modoScanner !== "EAN") return;
       if(!scanTravado) return;
@@ -962,11 +955,11 @@
         await fetch(URL_API, { method:"POST", body: JSON.stringify(payload) });
       }catch(e){}
 
-      // ✅ garante que extras puxem info
+      // extras puxam info
       const naNota = itensNF.some(i => String(i.ean || "") === String(ean));
       if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
 
-      // força sync imediato pra aparecer rápido
+      // força sync imediato
       puxarSyncAgora_();
     }
 
@@ -1004,8 +997,8 @@
         return;
       }
 
-      // ✅ FILTRO: só conta EANs de mercadoria (7900/7909)
-      if(!(ean13.startsWith("7900") || ean13.startsWith("7909"))) {
+      // ✅ mesmo bloqueio do scanner
+      if(!eanPermitido_(ean13)){
         inp.value = "";
         inp.focus();
         return;
@@ -1019,13 +1012,12 @@
       ultimoEanBipado = ean13;
       ultimaHoraBip = agora;
 
-      // ✅ trava e bip igual scanner (pra não disparar 2x colando rápido)
-      scanTravado = true;
-      document.getElementById("tapNext").classList.remove("hidden");
-      beepOk();
+      // trava para ficar consistente
+      travarAteToque();
 
       registrarBipeServidor_(ean13);
 
+      beepOk();
       inp.value = "";
       inp.focus();
     }
@@ -1115,7 +1107,6 @@
       document.getElementById("chave").focus();
     }
 
-    // filtro + boot
     window.addEventListener("load", ()=>{
       const f = localStorage.getItem("filial_conf_nf");
       const nome = localStorage.getItem("conferente_conf_nf");
