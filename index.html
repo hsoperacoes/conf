@@ -374,6 +374,14 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
+    // =========================================================
+    // ✅ REGRA DE ACEITE: só conta EAN-13 válido começando com 7900 ou 7909
+    // =========================================================
+    function eanPermitido_(ean13){
+      const e = String(ean13 || "").trim();
+      return (e.startsWith("7900") || e.startsWith("7909"));
+    }
+
     // ---------------- Login ----------------
     function entrar(){
       const f = document.getElementById("codigo-filial").value.trim();
@@ -595,6 +603,9 @@
       if(divergencias.length > 0) abrirModal(divergencias);
     }
 
+    // =========================================================
+    // ✅ ALTERAÇÃO 1: Modal agora mostra "FALTANDO: X" / "PASSANDO: X"
+    // =========================================================
     function abrirModal(divergencias){
       const modal = document.getElementById("modal-divergencia");
       const listaModal = document.getElementById("modal-lista");
@@ -603,12 +614,25 @@
       divergencias.forEach(i => {
         const div = document.createElement("div");
         div.className = "modal-item";
-        const cor = i.diff < 0 ? "#f97373" : "#43b0ff";
-        const labelExtra = i.status === "EXTRA" ? " <small style='color:#bbb'>(EXTRA)</small>" : "";
+
+        let label = "";
+        let cor = "#bbb";
+
+        if(i.diff < 0){
+          label = `FALTANDO: ${Math.abs(i.diff)}`;
+          cor = "#f97373";
+        } else if(i.diff > 0){
+          label = `PASSANDO: ${Math.abs(i.diff)}`;
+          cor = "#43b0ff";
+        }
+
+        const labelExtra = (i.status === "EXTRA")
+          ? " <small style='color:#bbb'>(EXTRA)</small>"
+          : "";
 
         div.innerHTML = `
           <span><strong>${i.codigo} / ${i.cor} / ${i.tamanho}</strong>${labelExtra}</span>
-          <span style="color:${cor}">Dif: ${i.diff}</span>
+          <span style="color:${cor}; font-weight:800">${label}</span>
         `;
         listaModal.appendChild(div);
       });
@@ -624,10 +648,6 @@
       if(!cabecalhoAtual) return;
       if(!confirm("Zerar TODA a contagem dessa NF (para todos os usuários)?")) return;
 
-      // ✅ aqui a gente zera localmente e "zera no servidor" limpando via registrarConferencia? Não.
-      // Como no GS o "limparSyncTempoReal_" só roda ao ENVIAR conferência,
-      // o jeito correto de zerar sync global é: você apagar na aba SYNC.
-      // Então aqui só zera LOCAL e aguarda o sync voltar 0 quando você já limpou no banco.
       mapaScan = {};
       atualizarKPIs();
 
@@ -713,10 +733,8 @@
       syncAtivo = true;
       ultimoSyncHash = "";
 
-      // primeira puxada imediata
       puxarSyncAgora_();
 
-      // loop
       syncTimer = setInterval(() => {
         puxarSyncAgora_();
       }, 1100);
@@ -732,7 +750,6 @@
     }
 
     function _hashMapa_(obj){
-      // hash simples determinístico
       const keys = Object.keys(obj || {}).sort();
       let s = "";
       for(const k of keys){
@@ -753,13 +770,11 @@
 
         const bipes = data.bipes || {};
 
-        // ✅ se você apagou as linhas no SYNC dessa chave, aqui volta {}
-        // e o total escaneado cai automaticamente
         const hash = _hashMapa_(bipes);
         if(hash !== ultimoSyncHash){
           ultimoSyncHash = hash;
 
-          mapaScan = bipes; // ✅ servidor manda, tela espelha
+          mapaScan = bipes;
           atualizarKPIs();
 
           const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
@@ -870,23 +885,25 @@
         async (decodedText) => {
           if(modoScanner !== "EAN") return;
 
-          // ✅ TRAVA REAL: continua com a câmera, mas ignora leituras enquanto travado
           if(scanTravado) return;
 
           const ean13 = extrairEAN13DoTexto(decodedText);
           if(!ean13) return;
 
-          // anti repetição rápida
+          // =========================================================
+          // ✅ ALTERAÇÃO 2: só contabiliza EAN-13 válido começando com 7900/7909
+          // =========================================================
+          if(!eanPermitido_(ean13)) return;
+
           const agora = Date.now();
           if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 600) return;
           ultimoEanBipado = ean13;
           ultimaHoraBip = agora;
 
-          // ✅ registra no servidor (multiusuário)
           await registrarBipeServidor_(ean13);
 
           beepOk();
-          travarAteToque(); // ✅ trava e só libera com toque
+          travarAteToque();
         },
         ()=>{}
       );
@@ -902,7 +919,6 @@
       document.getElementById("tapNext").classList.add("hidden");
     }
 
-    // ✅ clique em qualquer lugar do overlay libera (exceto no botão fechar)
     function clicouNaTelaScanner(ev){
       if(modoScanner !== "EAN") return;
       if(!scanTravado) return;
@@ -911,10 +927,6 @@
 
     async function registrarBipeServidor_(ean){
       if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
-
-      // ✅ otimista: a tela vai atualizar pelo SYNC já já,
-      // mas se quiser ver instantâneo local, pode descomentar:
-      // mapaScan[ean] = Number(mapaScan[ean] || 0) + 1;
 
       const payload = {
         api: "registrarBipeIndividual",
@@ -928,11 +940,9 @@
         await fetch(URL_API, { method:"POST", body: JSON.stringify(payload) });
       }catch(e){}
 
-      // ✅ garante que extras puxem info
       const naNota = itensNF.some(i => String(i.ean || "") === String(ean));
       if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
 
-      // ✅ força um sync imediato pra aparecer rápido (além do loop)
       puxarSyncAgora_();
     }
 
@@ -970,6 +980,13 @@
         return;
       }
 
+      // ✅ mesma regra do scanner (só 7900/7909)
+      if(!eanPermitido_(ean13)){
+        inp.value = "";
+        inp.focus();
+        return;
+      }
+
       const agora = Date.now();
       if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 500) {
         inp.value = "";
@@ -978,7 +995,6 @@
       ultimoEanBipado = ean13;
       ultimaHoraBip = agora;
 
-      // ✅ registra no servidor (igual scanner)
       registrarBipeServidor_(ean13);
 
       beepOk();
