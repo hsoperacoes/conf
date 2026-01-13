@@ -106,12 +106,15 @@
 
     .campo-pesquisa{margin-top:14px}
 
-    /* ✅ Scanner */
+    /* ✅ Scanner (CORRIGIDO: bloqueia clique no fundo + mostra erro dentro do overlay) */
     #scanner{
       width:100vw;height:100vh;position:fixed;inset:0;z-index:999999;
       display:none;justify-content:center;align-items:center;flex-direction:column;
+
+      /* escurece de verdade e impede clique no fundo */
       background:rgba(0,0,0,.88);
       backdrop-filter: blur(2px);
+
       pointer-events:auto;
       touch-action:none;
     }
@@ -125,7 +128,7 @@
       padding:12px;
       display:flex;align-items:center;justify-content:center;
       min-height:320px;
-      position: relative;
+      position: relative; /* Adicionado para conter o overlay de trava */
     }
     #scanner video,#scanner canvas{
       width:100% !important;
@@ -137,11 +140,11 @@
 
     .scanner-info{margin-top:10px;font-size:14px;text-align:center;color:#e5e7eb;max-width:min(720px,92vw)}
     .scanner-close{
-      position:absolute;top:15px;right:15px;background:#111827;border-radius:999px;padding:8px 12px;font-size:12px;z-index: 1000000;
-      color: #fff; border: 1px solid #333; cursor: pointer;
+      position:absolute;top:15px;right:15px;background:#111827;border-radius:999px;padding:8px 12px;font-size:12px;
+      z-index: 1000001; color: #fff; border: 1px solid #333; cursor: pointer;
     }
 
-    /* Overlay de trava - MANTIDO E CORRIGIDO */
+    /* Overlay de trava - Layout Original com Correção Técnica */
     #scanner-lock-overlay {
       position: absolute;
       inset: 0;
@@ -149,7 +152,7 @@
       display: none;
       justify-content: center;
       align-items: center;
-      z-index: 999999;
+      z-index: 1000000;
       border-radius: 12px;
       cursor: pointer;
     }
@@ -286,51 +289,64 @@
               </div>
 
               <div class="mini-teste">
-                <div class="row">
-                  <input id="ean-manual" type="text" placeholder="EAN Manual" style="flex:1" />
-                  <button onclick="adicionarEANManual()">OK</button>
+                <div class="muted" style="margin-bottom:6px"><strong>Teste sem câmera:</strong> cole um EAN e clique em Adicionar</div>
+                <div id="buffer-ean" class="loading hidden" style="margin-bottom:5px">🔍 Buscando dados no banco...</div>
+                <div class="row" style="gap:10px">
+                  <input id="ean-manual" type="text" placeholder="Cole aqui o EAN (somente números)" />
+                  <button class="btn-ok" onclick="adicionarEANManual()">
+                    <i class="fas fa-plus"></i> Adicionar
+                  </button>
                 </div>
-                <div id="buffer-ean" class="loading hidden" style="margin-top:5px">Buscando info...</div>
               </div>
+
+              <div class="linha-botoes">
+                <button class="btn-full" onclick="fazerConferencia()">
+                  <i class="fas fa-clipboard-check"></i> Fazer Conferência
+                </button>
+                <button id="btn-enviar" class="btn-full hidden" onclick="enviarConferencia()">
+                  <i class="fas fa-paper-plane"></i> Enviar Resultado
+                </button>
+              </div>
+
+              <div id="msg" class="loading hidden"></div>
             </div>
           </div>
 
           <div class="campo-pesquisa">
-            <input id="filtro" type="text" placeholder="🔍 Filtrar por EAN, Ref, Cor ou Tam..." />
+            <label for="filtro">Buscar (EAN / referência / cor / tamanho)</label>
+            <input id="filtro" type="text" placeholder="Digite para filtrar..." />
           </div>
 
           <div class="titulo">
-            Itens da Conferência
-            <div id="resumo-div" style="font-size:13px; font-weight:normal"></div>
+            Resultado da Conferência
+            <small id="resumo-div"></small>
           </div>
-          <div class="lista" id="lista"></div>
 
-          <div class="linha-botoes" style="margin-top:20px">
-            <button id="btn-enviar" class="btn-ok hidden" onclick="enviarConferencia()">
-              <i class="fas fa-paper-plane"></i> Finalizar e Enviar Conferência
-            </button>
-          </div>
+          <div id="lista" class="lista"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="scanner">
-    <button class="scanner-close" onclick="fecharLeitor()">FECHAR</button>
+  <div id="scanner" onclick="liberarScanner()">
+    <button class="scanner-close" onclick="fecharLeitor(); event.stopPropagation();">
+      <i class="fas fa-times"></i> Fechar
+    </button>
     <div id="scanner-view">
       <!-- Overlay de trava -->
-      <div id="scanner-lock-overlay" onclick="liberarScanner()">
+      <div id="scanner-lock-overlay">
         <span>LEITURA OK!<br>TOQUE PARA LIBERAR PRÓXIMA</span>
       </div>
     </div>
-    <div class="scanner-info" id="scanner-info"></div>
+    <div id="scanner-info" class="scanner-info"></div>
   </div>
 
   <div id="modal-divergencia" class="modal-overlay">
     <div class="modal-content">
-      <div class="modal-header">⚠️ Divergências Encontradas</div>
+      <div class="modal-header">⚠️ DIVERGÊNCIAS IDENTIFICADAS</div>
       <div class="modal-body" id="modal-lista"></div>
       <div class="modal-footer">
+        <p style="font-size: 13px; color: #bbb; margin-bottom: 15px;">Favor fazer uma conferência dos mesmos.</p>
         <button onclick="fecharModal()">Entendido</button>
       </div>
     </div>
@@ -828,7 +844,7 @@
 
       info.innerHTML = (modoScanner === "NF")
         ? "Aponte para o código de barras da NF (chave 44)."
-        : "Aponte para o EAN-13 da etiqueta.<br><b>Toque na tela após cada leitura para liberar a próxima.</b>";
+        : "Aponte para o <strong>EAN-13</strong> das peças.<br/><strong>Sem travar</strong> e com <strong>bipe instantâneo</strong>.";
 
       try{
         await pararScannerAtual_();
@@ -922,6 +938,7 @@
 
     // ✅ LIBERA A TRAVA PARA O PRÓXIMO BIPE
     function liberarScanner() {
+      if(!scannerTravado) return;
       scannerTravado = false;
       document.getElementById("scanner-lock-overlay").style.display = "none";
     }
@@ -1069,6 +1086,11 @@
           adicionarEANManual();
         }
       });
+
+      // ✅ Segurança extra: clique no fundo do scanner libera a trava se ela existir
+      document.getElementById("scanner").addEventListener("click", (e)=>{
+        liberarScanner();
+      }, true);
     });
   </script>
 </body>
