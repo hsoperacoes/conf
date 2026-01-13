@@ -513,8 +513,8 @@
     let termoFiltro = "";
 
     // Scanner
-    let scannerInstance = null;   // Dynamsoft (NF)
-    let html5Scanner = null;      // Html5Qrcode (EAN)
+    let scannerInstance = null;   // Dynamsoft (NF) - VERSÃO ORIGINAL
+    let html5Scanner = null;      // Html5Qrcode (EAN) - COM MELHORIAS VISUAIS
     let modoScanner = "";
 
     // ✅ debounce: evita bipar e registrar repetido
@@ -539,7 +539,7 @@
       document.body.style.overflow = on ? "hidden" : "";
     }
 
-    // ✅ NOTIFICAÇÃO BONITA DO EAN CAPTURADO
+    // ✅ NOTIFICAÇÃO BONITA DO EAN CAPTURADO (SÓ PARA EAN)
     function mostrarNotificacaoEAN(ean13) {
       const scannerDiv = document.getElementById("scanner");
       
@@ -573,7 +573,7 @@
       }, 3000);
     }
 
-    // ✅ REATIVA O SCANNER APÓS CLIQUE
+    // ✅ REATIVA O SCANNER APÓS CLIQUE (SÓ PARA EAN)
     function reativarScannerEAN() {
       if (html5Scanner && modoScanner === "EAN") {
         html5Scanner.resume();
@@ -1030,18 +1030,20 @@
         return;
       }
 
-      // ✅ abre overlay SUPER BONITO
+      // ✅ abre overlay
       scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
       scannerDiv.style.display = "flex";
       bloquearBody_(true);
 
-      // ✅ Texto INCRÍVEL com highlights
-      info.innerHTML = (modoScanner === "NF")
-        ? "Aponte para o <span class='scanner-info-highlight'>código de barras da NF</span> (chave 44)."
-        : `
+      // ✅ Textos diferentes para NF e EAN
+      if (modoScanner === "NF") {
+        info.innerHTML = "Aponte para o código de barras da NF (chave 44).";
+      } else {
+        info.innerHTML = `
           Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>
           <span class="scanner-info-highlight">Sem travar</span> e com <span class="scanner-info-highlight">bipe instantâneo</span>.
         `;
+      }
 
       try{
         await pararScannerAtual_();
@@ -1049,7 +1051,7 @@
         if(modoScanner === "EAN"){
           await iniciarHtml5EAN_(scannerView, info);
         } else {
-          await iniciarDynamsoftNF_(scannerView);
+          await iniciarDynamsoftNF_(scannerView, info);
         }
 
       }catch(ex){
@@ -1084,30 +1086,52 @@
       }catch(e){}
     }
 
-    async function iniciarDynamsoftNF_(scannerView){
-      scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
-      await scannerInstance.updateRuntimeSettings("speed");
-
-      scannerInstance.onFrameRead = results => {
-        if(!results || !results.length) return;
-        for (let r of results){
-          const code = (r.barcodeText || "").trim();
-          if(!code) continue;
-
-          const only = code.replace(/\D/g,'');
-          if(only.length >= 44){
-            document.getElementById("chave").value = only.substring(0,44);
-            beepOk();
-            fecharLeitor();
-            return;
+    // ✅ SCANNER NF (44 DÍGITOS) - VERSÃO ORIGINAL QUE FUNCIONAVA
+    async function iniciarDynamsoftNF_(scannerView, info) {
+      try {
+        // Inicializa o Dynamsoft
+        scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
+        
+        // Configurações para leitura rápida
+        await scannerInstance.updateRuntimeSettings("speed");
+        
+        // Configura o callback quando ler um código
+        scannerInstance.onFrameRead = results => {
+          if(!results || !results.length) return;
+          
+          for (let result of results){
+            const code = (result.barcodeText || "").trim();
+            if(!code) continue;
+            
+            // Extrai apenas números
+            const onlyNumbers = code.replace(/\D/g,'');
+            
+            // Verifica se tem pelo menos 44 dígitos (chave da NF)
+            if(onlyNumbers.length >= 44){
+              // Pega os primeiros 44 dígitos
+              const chave = onlyNumbers.substring(0,44);
+              document.getElementById("chave").value = chave;
+              
+              // Bipe de confirmação
+              beepOk();
+              
+              // Fecha o scanner
+              fecharLeitor();
+              return;
+            }
           }
-        }
-      };
-
-      await scannerInstance.show(scannerView);
+        };
+        
+        // Mostra o scanner na view
+        await scannerInstance.show(scannerView);
+        
+      } catch (err) {
+        console.error("Erro Dynamsoft:", err);
+        throw err;
+      }
     }
 
-    // ✅ EAN: BIPE + NOTIFICAÇÃO BONITA + PAUSA
+    // ✅ SCANNER EAN: BIPE + NOTIFICAÇÃO BONITA + PAUSA (COM MELHORIAS)
     async function iniciarHtml5EAN_(scannerView, info) {
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(520px, 92vw)"></div>`;
       html5Scanner = new Html5Qrcode("html5-ean");
@@ -1179,6 +1203,7 @@
           html5Scanner = null;
         }
         if (scannerInstance) {
+          await scannerInstance.hide();
           await scannerInstance.stop();
           scannerInstance = null;
         }
@@ -1186,7 +1211,7 @@
         console.error("Erro ao parar scanner:", e);
       }
       
-      // Remove notificações
+      // Remove notificações (se tiver)
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
       
@@ -1335,19 +1360,18 @@
         }
       });
 
-      // ✅ CORREÇÃO DO BOTÃO FECHAR: evento simplificado
+      // ✅ CORREÇÃO DO BOTÃO FECHAR
       document.querySelector('.scanner-close').addEventListener('click', (e) => {
-        e.stopPropagation(); // Só para o evento não propagar
+        e.stopPropagation();
         fecharLeitor();
       });
 
-      // ✅ overlay reativa scanner quando clicado
+      // ✅ overlay reativa scanner quando clicado (SÓ PARA EAN)
       document.getElementById("scanner").addEventListener("click", (e) => {
-        // Se clicou no fundo (não em botão ou notificação)
-        if (e.target.id === "scanner" || e.target.closest("#scanner-view")) {
+        // Se clicou no fundo (não em botão ou notificação) e é modo EAN
+        if ((e.target.id === "scanner" || e.target.closest("#scanner-view")) && modoScanner === "EAN") {
           reativarScannerEAN();
         }
-        // Não impede propagação aqui para o botão fechar funcionar
       }, true);
     });
   </script>
