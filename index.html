@@ -163,12 +163,12 @@
     }
     .modal-content {
       background: #1e1e1e; padding: 25px; border-radius: 12px; width: 90%; max-width: 600px;
-      border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: 1px solid #444; box-shadow:0 10px 30px rgba(0,0,0,0.5);
     }
-    .modal-header { color: #f97373; font-size: 1.2rem; font-weight: 800; margin-bottom: 15px; text-align: center; }
-    .modal-body { max-height: 300px; overflow-y: auto; margin-bottom: 20px; font-size: 14px; }
-    .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; gap:10px; }
-    .modal-footer { text-align: center; }
+    .modal-header { color:#f97373; font-size:1.2rem; font-weight:800; margin-bottom:15px; text-align:center; }
+    .modal-body { max-height:300px; overflow-y:auto; margin-bottom:20px; font-size:14px; }
+    .modal-item { padding:10px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .modal-footer { text-align:center; }
 
     footer{
       text-align:center;font-size:13px;color:#ccc;background:#2c2c2c;padding:10px 15px;border-radius:6px;margin:10px;max-width:980px;width:100%;
@@ -656,13 +656,11 @@
         return;
       }
 
-      // limpa local
       mapaScan = {};
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
       render(montarListaConferencia(jaConferido));
 
-      // força sync imediato
       puxarSyncAgora_();
       alert("Zerado (servidor + tela).");
     }
@@ -736,7 +734,7 @@
     }
 
     // =========================================================
-    // SYNC TEMPO REAL
+    // SYNC TEMPO REAL (puxa do banco e substitui o mapaScan)
     // =========================================================
     function iniciarSync_(){
       if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
@@ -799,7 +797,8 @@
     }
 
     // =========================================================
-    // Scanner (NF = Dynamsoft, EAN = Html5Qrcode) com BIPE SINCRONIZADO
+    // Scanner (NF = Dynamsoft, EAN = Html5Qrcode)
+    // ✅ BIPE IMEDIATO NO SCAN (ANTES DO BANCO) + SEM PAUSAR CÂMERA
     // =========================================================
     async function abrirLeitor(modo){
       const scannerDiv = document.getElementById("scanner");
@@ -821,7 +820,7 @@
 
       info.innerHTML = (modoScanner === "NF")
         ? "Aponte para o código de barras da NF (chave 44).<br/>Ao ler, fecha automaticamente."
-        : "Aponte para o <strong>EAN-13</strong> das peças.<br/><strong>Lê 1 vez</strong>, dá bip, e <strong>TRAVA</strong> até você tocar em qualquer lugar para ler o próximo.<br/><small>(a câmera continua aberta o tempo todo)</small>";
+        : "Aponte para o <strong>EAN-13</strong> das peças.<br/><strong>Lê 1 vez</strong>, dá bip na hora, e <strong>TRAVA</strong> até você tocar na tela para ler o próximo.<br/><small>(a câmera fica aberta o tempo todo)</small>";
 
       try{
         await pararScannerAtual_();
@@ -879,26 +878,7 @@
       await scannerInstance.show(scannerView);
     }
 
-    // ✅ pausa/retoma reais do Html5Qrcode (para parar “piscar/contabilizar” enquanto travado)
-    async function pausarEAN_(){
-      try{
-        if(html5Scanner && typeof html5Scanner.pause === "function"){
-          html5Scanner.pause(true);
-          return true;
-        }
-      }catch(e){}
-      return false;
-    }
-    async function resumirEAN_(){
-      try{
-        if(html5Scanner && typeof html5Scanner.resume === "function"){
-          html5Scanner.resume();
-          return true;
-        }
-      }catch(e){}
-      return false;
-    }
-
+    // ✅ EAN: BIPE IMEDIATO, SEM PAUSAR CÂMERA
     async function iniciarHtml5EAN_(scannerView){
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(520px, 92vw)"></div>`;
 
@@ -913,61 +893,42 @@
       await html5Scanner.start(
         { facingMode: "environment" },
         config,
-        async (decodedText) => {
+        (decodedText) => {
           if(modoScanner !== "EAN") return;
-
-          // travado = ignora tudo
           if(scanTravado) return;
 
           const ean13 = extrairEAN13DoTexto(decodedText);
           if(!ean13) return;
 
-          // bloqueia EAN fora de 7900/7909
           if(!eanPermitido_(ean13)) return;
 
-          // anti repetição rápida
           const agora = Date.now();
-          if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 600) return;
+          if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 650) return;
 
-          // ✅ trava e pausa IMEDIATO (antes de qualquer await)
+          // ✅ trava e bip na hora (antes do servidor)
           scanTravado = true;
           ultimoEanBipado = ean13;
           ultimaHoraBip = agora;
 
           document.getElementById("tapNext").classList.remove("hidden");
+          beepOk();
 
-          // pausa REAL do scanner (para parar flicker/detecção)
-          const pausou = await pausarEAN_();
-
-          // ✅ registra no servidor e SÓ DEPOIS bipa
-          const ok = await registrarBipeServidorComRetorno_(ean13);
-
-          if(ok){
-            beepOk(); // bipe sincronizado com registro real
-          } else {
-            // falhou -> destrava pra não prender o usuário
-            scanTravado = false;
-            document.getElementById("tapNext").classList.add("hidden");
-            if(pausou) await resumirEAN_();
-          }
+          // manda pro servidor em background
+          registrarBipeServidorSemAtrasarBipe_(ean13);
         },
         ()=>{}
       );
     }
 
-    // ✅ toque libera e RETOMA o scanner de verdade
-    async function clicouNaTelaScanner(ev){
+    function clicouNaTelaScanner(ev){
       if(modoScanner !== "EAN") return;
       if(!scanTravado) return;
-
       scanTravado = false;
       document.getElementById("tapNext").classList.add("hidden");
-
-      await resumirEAN_();
     }
 
-    async function registrarBipeServidorComRetorno_(ean){
-      if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return false;
+    async function registrarBipeServidorSemAtrasarBipe_(ean){
+      if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
 
       const payload = {
         api: "registrarBipeIndividual",
@@ -983,19 +944,22 @@
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify(payload)
         });
+
         const data = await resp.json().catch(()=>null);
         const ok = !!(data && data.success);
 
-        // extras puxam info
-        const naNota = itensNF.some(i => String(i.ean || "") === String(ean));
-        if(ok && !naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
+        if(ok){
+          // extras puxam info
+          const naNota = itensNF.some(i => String(i.ean || "") === String(ean));
+          if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
 
-        // força sync
-        if(ok) puxarSyncAgora_();
-
-        return ok;
+          // força sync
+          puxarSyncAgora_();
+        } else {
+          console.warn("Falha ao registrar no servidor:", data?.message || "sem detalhes");
+        }
       }catch(e){
-        return false;
+        console.warn("Erro ao registrar no servidor:", e);
       }
     }
 
@@ -1021,11 +985,12 @@
       }
     }
 
-    async function adicionarEANManual(){
+    function adicionarEANManual(){
       if(!cabecalhoAtual){
         alert("Carregue a NF primeiro.");
         return;
       }
+
       const inp = document.getElementById("ean-manual");
       const ean13 = extrairEAN13DoTexto(inp.value || "");
       if(!ean13){
@@ -1034,7 +999,6 @@
         return;
       }
 
-      // mesmo bloqueio do scanner
       if(!eanPermitido_(ean13)){
         inp.value = "";
         inp.focus();
@@ -1042,20 +1006,20 @@
       }
 
       const agora = Date.now();
-      if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 500) {
+      if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 650) {
         inp.value = "";
         return;
       }
+
+      // ✅ trava + bip imediato (igual scanner)
+      scanTravado = true;
       ultimoEanBipado = ean13;
       ultimaHoraBip = agora;
 
-      // trava visual (consistência)
-      scanTravado = true;
       document.getElementById("tapNext").classList.remove("hidden");
+      beepOk();
 
-      // ✅ só bipa depois que o servidor confirmar
-      const ok = await registrarBipeServidorComRetorno_(ean13);
-      if(ok) beepOk();
+      registrarBipeServidorSemAtrasarBipe_(ean13);
 
       inp.value = "";
       inp.focus();
