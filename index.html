@@ -137,28 +137,31 @@
 
     .scanner-info{margin-top:10px;font-size:14px;text-align:center;color:#e5e7eb;max-width:min(720px,92vw)}
     .scanner-close{
-      position:absolute;top:15px;right:15px;background:#111827;border-radius:999px;padding:8px 12px;font-size:12px;z-index: 10;
+      position:absolute;top:15px;right:15px;background:#111827;border-radius:999px;padding:8px 12px;font-size:12px;z-index: 1000000;
+      color: #fff; border: 1px solid #333; cursor: pointer;
     }
 
-    /* Overlay de trava */
+    /* Overlay de trava - MANTIDO E CORRIGIDO */
     #scanner-lock-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(0, 255, 0, 0.2);
+      background: rgba(0, 255, 0, 0.15);
       display: none;
       justify-content: center;
       align-items: center;
-      z-index: 5;
+      z-index: 999999;
       border-radius: 12px;
       cursor: pointer;
     }
     #scanner-lock-overlay span {
       background: #000;
       color: #fff;
-      padding: 10px 20px;
+      padding: 12px 24px;
       border-radius: 8px;
       font-weight: bold;
       border: 2px solid #0f766e;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
 
     .mini-teste{
@@ -317,7 +320,7 @@
     <div id="scanner-view">
       <!-- Overlay de trava -->
       <div id="scanner-lock-overlay" onclick="liberarScanner()">
-        <span>TOQUE PARA LIBERAR</span>
+        <span>LEITURA OK!<br>TOQUE PARA LIBERAR PRÓXIMA</span>
       </div>
     </div>
     <div class="scanner-info" id="scanner-info"></div>
@@ -355,7 +358,7 @@
     let modoScanner = "";
     let scannerInstance = null;   // Dynamsoft (NF)
     let html5Scanner = null;      // Html5Qrcode (EAN)
-    let scannerTravado = false;   // ✅ Nova trava de clique
+    let scannerTravado = false;   // ✅ Trava de clique
 
     let syncAtivo = false;
     let syncTimer = null;
@@ -874,7 +877,7 @@
       await scannerInstance.show(scannerView);
     }
 
-    // ✅ EAN: BIPE NA HORA + NÃO ESPERA SERVIDOR + NÃO TRAVA + TRAVA DE CLIQUE
+    // ✅ EAN: CÂMERA FLUIDA + TRAVA VISUAL
     async function iniciarHtml5EAN_(scannerView, info){
       const container = document.createElement("div");
       container.id = "html5-ean";
@@ -884,7 +887,7 @@
       html5Scanner = new Html5Qrcode("html5-ean");
 
       const config = {
-        fps: 20, // Aumentado para maior fluidez
+        fps: 20,
         qrbox: { width: 250, height: 250 },
         experimentalFeatures: { useBarCodeDetectorIfSupported: true }
       };
@@ -893,6 +896,7 @@
         { facingMode: "environment" },
         config,
         (decodedText) => {
+          // ✅ Se estiver travado, ignora a leitura mas NÃO para a câmera
           if(modoScanner !== "EAN" || scannerTravado) return;
 
           const ean13 = extrairEAN13DoTexto(decodedText);
@@ -900,23 +904,23 @@
           if(!eanPermitido_(ean13)) return;
           if(!podeProcessarEAN_(ean13)) return;
 
-          // ✅ TRAVA IMEDIATA PARA EVITAR DUPLO BIPE/CONGELAMENTO
+          // ✅ ATIVA A TRAVA (impede novos bipes)
           scannerTravado = true;
 
-          // ✅ BIPE INSTANTÂNEO SINCRONIZADO
+          // ✅ BIPE IMEDIATO
           beepOk();
 
-          // ✅ MOSTRA OVERLAY DE TRAVA
+          // ✅ MOSTRA O OVERLAY (sem congelar o vídeo atrás)
           document.getElementById("scanner-lock-overlay").style.display = "flex";
 
-          // ✅ REGISTRA NO SERVIDOR EM BACKGROUND
+          // ✅ REGISTRA NO SERVIDOR
           registrarEANNoServidor_(ean13);
         },
         ()=>{}
       );
     }
 
-    // ✅ FUNÇÃO PARA LIBERAR O SCANNER APÓS O CLIQUE
+    // ✅ LIBERA A TRAVA PARA O PRÓXIMO BIPE
     function liberarScanner() {
       scannerTravado = false;
       document.getElementById("scanner-lock-overlay").style.display = "none";
