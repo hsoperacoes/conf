@@ -274,6 +274,7 @@
       border: 1px solid #374151;
       backdrop-filter: blur(10px);
       transition: all 0.3s ease;
+      cursor: pointer;
     }
 
     .scanner-close:hover {
@@ -474,7 +475,7 @@
   </div>
 
   <div id="scanner">
-    <button class="scanner-close" onclick="fecharLeitor(); event.stopPropagation();">
+    <button class="scanner-close" onclick="fecharLeitor()">
       <i class="fas fa-times"></i> Fechar
     </button>
     <div id="scanner-view"></div>
@@ -1181,7 +1182,9 @@
           await scannerInstance.stop();
           scannerInstance = null;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Erro ao parar scanner:", e);
+      }
       
       // Remove notificações
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
@@ -1332,13 +1335,19 @@
         }
       });
 
+      // ✅ CORREÇÃO DO BOTÃO FECHAR: evento simplificado
+      document.querySelector('.scanner-close').addEventListener('click', (e) => {
+        e.stopPropagation(); // Só para o evento não propagar
+        fecharLeitor();
+      });
+
       // ✅ overlay reativa scanner quando clicado
       document.getElementById("scanner").addEventListener("click", (e) => {
+        // Se clicou no fundo (não em botão ou notificação)
         if (e.target.id === "scanner" || e.target.closest("#scanner-view")) {
           reativarScannerEAN();
         }
-        e.preventDefault();
-        e.stopPropagation();
+        // Não impede propagação aqui para o botão fechar funcionar
       }, true);
     });
   </script>
