@@ -114,7 +114,7 @@
     #scanner{
       width:100%;height:100vh;position:fixed;inset:0;z-index:1000;
       display:none;justify-content:center;align-items:center;flex-direction:column;
-      background:rgba(0,0,0,.28); /* ✅ mais claro ainda */
+      background:rgba(0,0,0,.28);
       backdrop-filter: blur(1px);
     }
     #scanner video,#scanner canvas{max-width:92vw;max-height:72vh}
@@ -167,7 +167,7 @@
     }
     .modal-header { color: #f97373; font-size: 1.2rem; font-weight: 800; margin-bottom: 15px; text-align: center; }
     .modal-body { max-height: 300px; overflow-y: auto; margin-bottom: 20px; font-size: 14px; }
-    .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
+    .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
     .modal-footer { text-align: center; }
 
     footer{
@@ -355,7 +355,7 @@
 
     let cabecalhoAtual = null;
     let itensNF = [];
-    let mapaScan = {};        // ✅ agora é espelho do SERVIDOR (sync)
+    let mapaScan = {};        // ✅ espelho do SERVIDOR (sync)
     let termoFiltro = "";
 
     // Scanner
@@ -373,14 +373,6 @@
     let syncTimer = null;
     let syncAtivo = false;
     let ultimoSyncHash = "";
-
-    // =========================================================
-    // ✅ REGRA DE ACEITE: só conta EAN-13 válido começando com 7900 ou 7909
-    // =========================================================
-    function eanPermitido_(ean13){
-      const e = String(ean13 || "").trim();
-      return (e.startsWith("7900") || e.startsWith("7909"));
-    }
 
     // ---------------- Login ----------------
     function entrar(){
@@ -603,9 +595,7 @@
       if(divergencias.length > 0) abrirModal(divergencias);
     }
 
-    // =========================================================
-    // ✅ ALTERAÇÃO 1: Modal agora mostra "FALTANDO: X" / "PASSANDO: X"
-    // =========================================================
+    // ✅ Modal: agora mostra "FALTANDO/PASSANDO" + quantidade (em vez de "Dif: X")
     function abrirModal(divergencias){
       const modal = document.getElementById("modal-divergencia");
       const listaModal = document.getElementById("modal-lista");
@@ -615,24 +605,26 @@
         const div = document.createElement("div");
         div.className = "modal-item";
 
-        let label = "";
-        let cor = "#bbb";
+        const abs = Math.abs(i.diff);
+        let texto = "";
+        let cor = "#43b0ff";
 
-        if(i.diff < 0){
-          label = `FALTANDO: ${Math.abs(i.diff)}`;
+        if (i.status === "EXTRA") {
+          texto = `PASSANDO: ${abs}`;
+          cor = "#43b0ff";
+        } else if (i.diff < 0) {
+          texto = `FALTANDO: ${abs}`;
           cor = "#f97373";
-        } else if(i.diff > 0){
-          label = `PASSANDO: ${Math.abs(i.diff)}`;
+        } else if (i.diff > 0) {
+          texto = `PASSANDO: ${abs}`;
           cor = "#43b0ff";
         }
 
-        const labelExtra = (i.status === "EXTRA")
-          ? " <small style='color:#bbb'>(EXTRA)</small>"
-          : "";
+        const labelExtra = i.status === "EXTRA" ? " <small style='color:#bbb'>(EXTRA)</small>" : "";
 
         div.innerHTML = `
           <span><strong>${i.codigo} / ${i.cor} / ${i.tamanho}</strong>${labelExtra}</span>
-          <span style="color:${cor}; font-weight:800">${label}</span>
+          <span style="color:${cor}; font-weight:900">${texto}</span>
         `;
         listaModal.appendChild(div);
       });
@@ -644,16 +636,40 @@
       document.getElementById("modal-divergencia").style.display = "none";
     }
 
+    // ✅ Zerar scans: agora apaga NO SERVIDOR (SYNC_TEMPO_REAL) também
     async function limparScans(){
       if(!cabecalhoAtual) return;
       if(!confirm("Zerar TODA a contagem dessa NF (para todos os usuários)?")) return;
 
-      mapaScan = {};
-      atualizarKPIs();
+      const chave = String(cabecalhoAtual.chaveAcesso || "").trim();
+      if(!chave || chave.length !== 44){
+        alert("Chave inválida para zerar.");
+        return;
+      }
 
-      const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
-      render(montarListaConferencia(jaConferido));
-      alert("Zerado localmente. Se você limpou a aba SYNC dessa chave, o sync já vai voltar 0 na próxima atualização.");
+      try{
+        // ✅ apaga no banco (SYNC_TEMPO_REAL) + limpa cache do servidor
+        const resp = await fetch(URL_API, {
+          method: "POST",
+          body: JSON.stringify({ api: "zerarBipes", chaveAcesso: chave, v: APP_VERSION })
+        });
+        const data = await resp.json();
+        if(!data.success) throw new Error(data.message || "Falha ao zerar no servidor.");
+
+        // ✅ zera local e força refresh
+        mapaScan = {};
+        atualizarKPIs();
+
+        const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+        render(montarListaConferencia(jaConferido));
+
+        // puxa sync imediatamente (vai vir zerado)
+        puxarSyncAgora_();
+
+        alert("Scans zerados no BANCO e na tela.");
+      }catch(e){
+        alert("Erro ao zerar no banco: " + (e.message || e));
+      }
     }
 
     async function ajusteManual(ean){
@@ -733,8 +749,10 @@
       syncAtivo = true;
       ultimoSyncHash = "";
 
+      // primeira puxada imediata
       puxarSyncAgora_();
 
+      // loop
       syncTimer = setInterval(() => {
         puxarSyncAgora_();
       }, 1100);
@@ -769,8 +787,8 @@
         if(!data || !data.success) throw new Error("sync fail");
 
         const bipes = data.bipes || {};
-
         const hash = _hashMapa_(bipes);
+
         if(hash !== ultimoSyncHash){
           ultimoSyncHash = hash;
 
@@ -885,33 +903,36 @@
         async (decodedText) => {
           if(modoScanner !== "EAN") return;
 
+          // ✅ TRAVA REAL: se travado, ignora tudo
           if(scanTravado) return;
 
           const ean13 = extrairEAN13DoTexto(decodedText);
           if(!ean13) return;
 
-          // =========================================================
-          // ✅ ALTERAÇÃO 2: só contabiliza EAN-13 válido começando com 7900/7909
-          // =========================================================
-          if(!eanPermitido_(ean13)) return;
+          // ✅ FILTRO: só conta EANs de mercadoria (7900/7909)
+          if(!(ean13.startsWith("7900") || ean13.startsWith("7909"))) {
+            // não contabiliza, não bip, não registra, não joga no banco
+            return;
+          }
 
+          // anti repetição rápida
           const agora = Date.now();
           if (ean13 === ultimoEanBipado && (agora - ultimaHoraBip) < 600) return;
           ultimoEanBipado = ean13;
           ultimaHoraBip = agora;
 
-          await registrarBipeServidor_(ean13);
+          // ✅ trava IMEDIATAMENTE (antes do await) — resolve o “continua bipando”
+          scanTravado = true;
+          document.getElementById("tapNext").classList.remove("hidden");
 
+          // bip na hora (feedback imediato)
           beepOk();
-          travarAteToque();
+
+          // registra no servidor (multiusuário)
+          await registrarBipeServidor_(ean13);
         },
         ()=>{}
       );
-    }
-
-    function travarAteToque(){
-      scanTravado = true;
-      document.getElementById("tapNext").classList.remove("hidden");
     }
 
     function liberarProximoScan(){
@@ -919,6 +940,7 @@
       document.getElementById("tapNext").classList.add("hidden");
     }
 
+    // ✅ clique em qualquer lugar do overlay libera (exceto no botão fechar)
     function clicouNaTelaScanner(ev){
       if(modoScanner !== "EAN") return;
       if(!scanTravado) return;
@@ -940,9 +962,11 @@
         await fetch(URL_API, { method:"POST", body: JSON.stringify(payload) });
       }catch(e){}
 
+      // ✅ garante que extras puxem info
       const naNota = itensNF.some(i => String(i.ean || "") === String(ean));
       if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
 
+      // força sync imediato pra aparecer rápido
       puxarSyncAgora_();
     }
 
@@ -980,8 +1004,8 @@
         return;
       }
 
-      // ✅ mesma regra do scanner (só 7900/7909)
-      if(!eanPermitido_(ean13)){
+      // ✅ FILTRO: só conta EANs de mercadoria (7900/7909)
+      if(!(ean13.startsWith("7900") || ean13.startsWith("7909"))) {
         inp.value = "";
         inp.focus();
         return;
@@ -995,9 +1019,13 @@
       ultimoEanBipado = ean13;
       ultimaHoraBip = agora;
 
+      // ✅ trava e bip igual scanner (pra não disparar 2x colando rápido)
+      scanTravado = true;
+      document.getElementById("tapNext").classList.remove("hidden");
+      beepOk();
+
       registrarBipeServidor_(ean13);
 
-      beepOk();
       inp.value = "";
       inp.focus();
     }
