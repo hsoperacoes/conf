@@ -106,15 +106,38 @@
 
     .campo-pesquisa{margin-top:14px}
 
-    /* Scanner */
+    /* ✅ Scanner (CORRIGIDO: bloqueia clique no fundo + mostra erro dentro do overlay) */
     #scanner{
-      width:100%;height:100vh;position:fixed;inset:0;z-index:1000;
+      width:100vw;height:100vh;position:fixed;inset:0;z-index:999999;
       display:none;justify-content:center;align-items:center;flex-direction:column;
-      background:rgba(0,0,0,.28);
-      backdrop-filter: blur(1px);
+
+      /* escurece de verdade e impede clique no fundo */
+      background:rgba(0,0,0,.88);
+      backdrop-filter: blur(2px);
+
+      pointer-events:auto;
+      touch-action:none;
     }
-    #scanner video,#scanner canvas{max-width:92vw;max-height:72vh}
-    .scanner-info{margin-top:10px;font-size:14px;text-align:center;color:#e5e7eb}
+    #scanner *{ pointer-events:auto; }
+
+    #scanner-view{
+      width:min(720px,92vw);
+      background:#000;
+      border:1px solid #2b2b2b;
+      border-radius:12px;
+      padding:12px;
+      display:flex;align-items:center;justify-content:center;
+      min-height:320px;
+    }
+    #scanner video,#scanner canvas{
+      width:100% !important;
+      height:auto !important;
+      border-radius:10px;
+      max-width:none !important;
+      max-height:none !important;
+    }
+
+    .scanner-info{margin-top:10px;font-size:14px;text-align:center;color:#e5e7eb;max-width:min(720px,92vw)}
     .scanner-close{
       position:absolute;top:15px;right:15px;background:#111827;border-radius:999px;padding:8px 12px;font-size:12px
     }
@@ -338,6 +361,11 @@
 
     function eanPermitido_(ean13){
       return /^7900|^7909/.test(String(ean13||""));
+    }
+
+    // ✅ (NOVO) trava o scroll do fundo quando abre o scanner
+    function bloquearBody_(on){
+      document.body.style.overflow = on ? "hidden" : "";
     }
 
     function entrar(){
@@ -774,8 +802,10 @@
         return;
       }
 
-      scannerView.innerHTML = "";
+      // ✅ abre overlay do jeito certo
+      scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
       scannerDiv.style.display = "flex";
+      bloquearBody_(true);
 
       info.innerHTML = (modoScanner === "NF")
         ? "Aponte para o código de barras da NF (chave 44)."
@@ -785,14 +815,22 @@
         await pararScannerAtual_();
 
         if(modoScanner === "EAN"){
-          await iniciarHtml5EAN_(scannerView);
+          await iniciarHtml5EAN_(scannerView, info);
         } else {
           await iniciarDynamsoftNF_(scannerView);
         }
 
       }catch(ex){
-        alert("Erro ao iniciar o leitor: " + (ex.message || ex));
-        scannerDiv.style.display = "none";
+        // ✅ não some silencioso: mostra o erro dentro do overlay
+        const msg = (ex && (ex.message || ex.toString())) || "Falha ao abrir a câmera.";
+        info.innerHTML = `❌ Não consegui abrir a câmera.<br/><small style="color:#cbd5e1">${escapeHtml_(msg)}</small>`;
+        scannerView.innerHTML = `
+          <div class="muted" style="text-align:center;padding:12px">
+            <strong>Permissão de câmera bloqueada</strong><br/>
+            Clique no ícone de câmera do Chrome e permita o acesso.<br/>
+            Depois recarregue a página.
+          </div>
+        `;
       }
     }
 
@@ -838,7 +876,7 @@
     }
 
     // ✅ EAN: BIPE NA HORA + NÃO ESPERA SERVIDOR + NÃO TRAVA
-    async function iniciarHtml5EAN_(scannerView){
+    async function iniciarHtml5EAN_(scannerView, info){
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(520px, 92vw)"></div>`;
       html5Scanner = new Html5Qrcode("html5-ean");
 
@@ -859,7 +897,7 @@
           if(!eanPermitido_(ean13)) return;
           if(!podeProcessarEAN_(ean13)) return;
 
-          // ✅ BIPE INSTANTÂNEO (AGORA)
+          // ✅ BIPE INSTANTÂNEO
           beepOk();
 
           // ✅ servidor por trás (não aguarda)
@@ -873,6 +911,7 @@
       const scannerDiv = document.getElementById("scanner");
       await pararScannerAtual_();
       scannerDiv.style.display = "none";
+      bloquearBody_(false);
     }
 
     function adicionarEANManual(){
@@ -982,6 +1021,12 @@
       document.getElementById("chave").focus();
     }
 
+    function escapeHtml_(s){
+      return String(s||"").replace(/[&<>"']/g, (m)=>({
+        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
+      }[m]));
+    }
+
     window.addEventListener("load", ()=>{
       const f = localStorage.getItem("filial_conf_nf");
       const nome = localStorage.getItem("conferente_conf_nf");
@@ -1006,6 +1051,12 @@
           adicionarEANManual();
         }
       });
+
+      // ✅ (NOVO) segurança extra: overlay nunca deixa clique vazar
+      document.getElementById("scanner").addEventListener("click", (e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
     });
   </script>
 </body>
