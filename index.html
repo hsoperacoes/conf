@@ -106,7 +106,7 @@
 
     .campo-pesquisa{margin-top:14px}
 
-    /* ✅ Scanner SUPER BONITO */
+    /* ✅ Scanner */
     #scanner {
       width: 100vw;
       height: 100vh;
@@ -164,7 +164,7 @@
       max-height: none !important;
     }
 
-    /* ✅ NOTIFICAÇÃO BONITA DO EAN CAPTURADO */
+    /* ✅ NOTIFICAÇÃO BONITA DO EAN CAPTURADO (APENAS PARA EAN) */
     .scanner-notification {
       position: absolute;
       top: 20px;
@@ -282,7 +282,7 @@
       transform: scale(1.05);
     }
 
-    /* ✅ EFEITO DE PAUSA */
+    /* ✅ EFEITO DE PAUSA (APENAS PARA EAN) */
     .scanner-paused {
       border-color: #0f766e !important;
       animation: paused-glow 2s ease-in-out infinite;
@@ -513,8 +513,8 @@
     let termoFiltro = "";
 
     // Scanner
-    let scannerInstance = null;   // Dynamsoft (NF) - VERSÃO ORIGINAL
-    let html5Scanner = null;      // Html5Qrcode (EAN) - COM MELHORIAS VISUAIS
+    let scannerInstance = null;   // Dynamsoft (NF)
+    let html5Scanner = null;      // Html5Qrcode (EAN)
     let modoScanner = "";
 
     // ✅ debounce: evita bipar e registrar repetido
@@ -541,6 +541,9 @@
 
     // ✅ NOTIFICAÇÃO BONITA DO EAN CAPTURADO (SÓ PARA EAN)
     function mostrarNotificacaoEAN(ean13) {
+      // Só mostra notificação se for modo EAN
+      if (modoScanner !== "EAN") return;
+      
       const scannerDiv = document.getElementById("scanner");
       
       // Remove notificação anterior se existir
@@ -1051,7 +1054,7 @@
         if(modoScanner === "EAN"){
           await iniciarHtml5EAN_(scannerView, info);
         } else {
-          await iniciarDynamsoftNF_(scannerView, info);
+          await iniciarDynamsoftNF_(scannerView);
         }
 
       }catch(ex){
@@ -1086,8 +1089,8 @@
       }catch(e){}
     }
 
-    // ✅ SCANNER NF (44 DÍGITOS) - VERSÃO ORIGINAL QUE FUNCIONAVA
-    async function iniciarDynamsoftNF_(scannerView, info) {
+    // ✅ SCANNER NF (44 DÍGITOS) - VERSÃO ORIGINAL SIMPLES
+    async function iniciarDynamsoftNF_(scannerView) {
       try {
         // Inicializa o Dynamsoft
         scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
@@ -1115,7 +1118,7 @@
               // Bipe de confirmação
               beepOk();
               
-              // Fecha o scanner
+              // Fecha o scanner IMEDIATAMENTE - como no original
               fecharLeitor();
               return;
             }
@@ -1131,7 +1134,7 @@
       }
     }
 
-    // ✅ SCANNER EAN: BIPE + NOTIFICAÇÃO BONITA + PAUSA (COM MELHORIAS)
+    // ✅ SCANNER EAN: COM NOTIFICAÇÃO E PAUSA
     async function iniciarHtml5EAN_(scannerView, info) {
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(520px, 92vw)"></div>`;
       html5Scanner = new Html5Qrcode("html5-ean");
@@ -1162,7 +1165,7 @@
             // ✅ 1. BIPE INSTANTÂNEO
             beepOk();
             
-            // ✅ 2. NOTIFICAÇÃO SUPER BONITA
+            // ✅ 2. NOTIFICAÇÃO SUPER BONITA (SÓ PARA EAN)
             mostrarNotificacaoEAN(ean13);
             
             // ✅ 3. REGISTRA NO SERVIDOR
@@ -1211,7 +1214,7 @@
         console.error("Erro ao parar scanner:", e);
       }
       
-      // Remove notificações (se tiver)
+      // Remove notificações (se tiver - só para EAN)
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
       
