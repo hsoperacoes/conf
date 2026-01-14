@@ -111,21 +111,40 @@
 
     .campo-pesquisa{margin-top:14px}
 
-    /* ✅ Scanner */
+    /* ✅ Scanner - CORREÇÃO RADICAL */
     #scanner {
       width: 100vw;
       height: 100vh;
       position: fixed;
       inset: 0;
-      z-index: 999999; /* Mantido alto */
+      z-index: 1000000; /* Alto, mas não máximo */
       display: none;
       justify-content: center;
       align-items: center;
       flex-direction: column;
       background: rgba(0, 0, 0, 0.95);
       backdrop-filter: blur(8px);
+      pointer-events: auto;
     }
-    #scanner * { pointer-events: auto; }
+    
+    /* ✅ Quando for modo EAN, mantém o overlay escuro */
+    #scanner.ean-mode {
+      background: rgba(0, 0, 0, 0.95);
+      backdrop-filter: blur(8px);
+    }
+    
+    /* ✅ Quando for modo NF, NÃO TEM OVERLAY - só o leitor flutuante */
+    #scanner.nf-mode {
+      background: transparent !important;
+      backdrop-filter: none !important;
+      pointer-events: none; /* ✅ IMPORTANTE: permite clicar nos elementos por baixo */
+    }
+
+    /* ✅ Nosso botão de fechar fica FORA do scanner no modo NF */
+    #scanner.nf-mode .scanner-close {
+      pointer-events: auto !important; /* Mas o botão é clicável */
+      z-index: 2147483646; /* Um abaixo do máximo */
+    }
 
     #scanner-view {
       width: min(720px, 92vw);
@@ -245,16 +264,16 @@
       margin: 0 4px;
     }
 
-    /* ✅ CORREÇÃO DEFINITIVA: Nosso botão fica ACIMA de TUDO */
+    /* ✅ Botão de fechar - CORREÇÃO RADICAL */
     .scanner-close {
-      position: fixed; /* ✅ FIXED para garantir posicionamento global */
-      top: 25px; /* ✅ Um pouco mais abaixo para não cobrir */
-      right: 25px;
-      background: rgba(220, 38, 38, 0.95); /* ✅ Vermelho para ser mais visível */
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(220, 38, 38, 0.95);
       border-radius: 999px;
       padding: 12px 18px;
       font-size: 14px;
-      z-index: 2147483647; /* ✅ Z-INDEX MÁXIMO ABSOLUTO */
+      z-index: 2147483645; /* Abaixo do modal da licença */
       border: 2px solid #fca5a5;
       backdrop-filter: blur(10px);
       transition: all 0.3s ease;
@@ -265,6 +284,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      pointer-events: auto;
     }
     .scanner-close:hover { 
       background: rgba(185, 28, 28, 0.95); 
@@ -272,14 +292,17 @@
       box-shadow: 0 6px 25px rgba(220, 38, 38, 0.6);
     }
 
-    /* ✅ CORREÇÃO: Garantir que o modal da licença do Dynamsoft fique clicável */
+    /* ✅ CORREÇÃO CRÍTICA: Modal da licença fica com z-index MÁXIMO */
     .dce-modal, .dce-dialog {
-      z-index: 2147483646 !important; /* ✅ Logo abaixo do nosso botão */
+      z-index: 2147483647 !important; /* MÁXIMO */
+      position: fixed !important;
       pointer-events: auto !important;
     }
     
-    .dce-modal-backdrop, .dce-overlay {
-      z-index: 2147483645 !important; /* ✅ Abaixo do modal */
+    .dce-modal-backdrop {
+      z-index: 2147483646 !important; /* Logo abaixo do modal */
+      position: fixed !important;
+      inset: 0 !important;
     }
 
     /* ✅ EFEITO DE PAUSA (EAN) */
@@ -328,11 +351,8 @@
        ✅ AJUSTE PEDIDO (NF):
        - some caixa preta (#scanner-view) + instrução (#scanner-info)
        - mantém só o leitor rodando + nosso botão FECHAR
+       - NÃO TEM OVERLAY ESCURO
     ========================================================= */
-    #scanner.nf-mode{
-      background: transparent !important;
-      backdrop-filter: none !important;
-    }
     #scanner.nf-mode #scanner-view{
       background: transparent !important;
       border: none !important;
@@ -467,15 +487,12 @@
   </div>
 
   <div id="scanner">
-    <!-- ✅ O botão de fechar agora é FIXED e está FORA do #scanner -->
+    <button class="scanner-close" onclick="fecharLeitor()">
+      <i class="fas fa-times"></i> Fechar Scanner
+    </button>
     <div id="scanner-view"></div>
     <div id="scanner-info" class="scanner-info"></div>
   </div>
-
-  <!-- ✅ Botão de fechar FIXED (fora do #scanner) -->
-  <button id="global-scanner-close" class="scanner-close" onclick="fecharLeitorCompleto()" style="display: none;">
-    <i class="fas fa-times"></i> Fechar Scanner
-  </button>
 
   <div id="modal-divergencia" class="modal-overlay">
     <div class="modal-content">
@@ -520,42 +537,35 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
-    // ✅ CORREÇÃO DEFINITIVA: Forçar fechar modal da licença
-    function forcarFecharModalLicenca() {
-      console.log("Tentando fechar modal da licença do Dynamsoft...");
+    // ✅ CORREÇÃO: Simples função para fechar o modal da licença
+    function tentarFecharModalLicenca() {
+      console.log("Tentando fechar modal de licença...");
       
-      // Método 1: Clicar no botão de fechar do Dynamsoft se existir
-      const closeButtons = [
-        ...document.querySelectorAll('.dce-btn-close'),
-        ...document.querySelectorAll('.dce-close'),
-        ...document.querySelectorAll('[aria-label="Close"]'),
-        ...document.querySelectorAll('[aria-label="Fechar"]'),
-        ...document.querySelectorAll('button:contains("×")'),
-        ...document.querySelectorAll('.dce-btn.dce-btn-close')
-      ];
-      
-      for (const btn of closeButtons) {
+      // Procura e clica no botão "X" do Dynamsoft
+      const closeButtons = document.querySelectorAll('.dce-btn-close, .dce-close, [aria-label="Close"], [aria-label="Fechar"]');
+      closeButtons.forEach(btn => {
         if (btn && btn.click) {
           console.log("Clicando no botão de fechar do Dynamsoft");
           btn.click();
-          // Dispara eventos também
-          btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          // Força o clique
+          const event = new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: true
+          });
+          btn.dispatchEvent(event);
         }
-      }
+      });
       
-      // Método 2: Remover os elementos do modal
-      const modals = document.querySelectorAll('.dce-modal, .dce-dialog, .dce-modal-backdrop, .dce-overlay');
-      if (modals.length > 0) {
-        console.log(`Removendo ${modals.length} modais do Dynamsoft`);
+      // Alternativa: Remove os modais
+      setTimeout(() => {
+        const modals = document.querySelectorAll('.dce-modal, .dce-dialog, .dce-modal-backdrop');
         modals.forEach(modal => {
-          if (modal.parentNode) {
+          if (modal && modal.parentNode) {
             modal.parentNode.removeChild(modal);
           }
         });
-        return true;
-      }
-      
-      return false;
+      }, 100);
     }
 
     function eanPermitido_(ean13){
@@ -1037,8 +1047,10 @@
       const info = document.getElementById("scanner-info");
 
       modoScanner = modo;
-      scannerDiv.classList.remove("nf-mode");
-
+      
+      // ✅ CORREÇÃO: Remove classes anteriores
+      scannerDiv.classList.remove("nf-mode", "ean-mode");
+      
       if(modoScanner === "EAN" && !cabecalhoAtual){
         alert("Carregue a NF primeiro.");
         return;
@@ -1046,10 +1058,9 @@
 
       scannerDiv.style.cursor = modoScanner === "EAN" ? "pointer" : "default";
 
-      // ✅ Mostra nosso botão de fechar GLOBAL
-      document.getElementById('global-scanner-close').style.display = 'flex';
-
       if (modoScanner === "EAN") {
+        // ✅ Modo EAN: com overlay escuro
+        scannerDiv.classList.add("ean-mode");
         scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
         scannerDiv.style.display = "flex";
         bloquearBody_(true);
@@ -1058,6 +1069,9 @@
           Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>
           <span class="scanner-info-highlight">Sem travar</span> e com <span class="scanner-info-highlight">bipe instantâneo</span>.
         `;
+      } else {
+        // ✅ Modo NF: SEM overlay escuro
+        scannerDiv.classList.add("nf-mode");
       }
 
       try{
@@ -1071,25 +1085,29 @@
         // ✅ NF: prepara primeiro (pode abrir modal de licença)
         await iniciarDynamsoftNF_PrepararSomente_();
 
-        // ✅ mostra overlay já em nf-mode
-        scannerDiv.classList.add("nf-mode");
+        // ✅ Mostra o scanner (mas SEM overlay escuro no modo NF)
         scannerDiv.style.display = "flex";
         bloquearBody_(true);
 
         await iniciarDynamsoftNF_ShowNoContainer_(scannerView);
 
-        // ✅ CORREÇÃO: Verifica se o modal da licença apareceu
+        // ✅ CORREÇÃO: Espera um pouco e ajusta o z-index do nosso botão
         setTimeout(() => {
           const modalLicenca = document.querySelector('.dce-modal, .dce-dialog');
+          const nossoBotao = document.querySelector('.scanner-close');
+          
           if (modalLicenca) {
-            console.log("Modal de licença detectado, garantindo que nosso botão fique acima");
-            // Garante z-index máximo para nosso botão
-            document.getElementById('global-scanner-close').style.zIndex = '2147483647';
+            console.log("Modal de licença detectado");
+            // Nosso botão fica um pouco abaixo do modal
+            if (nossoBotao) nossoBotao.style.zIndex = '2147483645';
+          } else if (nossoBotao) {
+            // Sem modal, nosso botão fica no topo
+            nossoBotao.style.zIndex = '2147483646';
           }
         }, 300);
 
       }catch(ex){
-        try{ await fecharLeitorCompleto(); }catch(e){}
+        try{ await fecharLeitor(); }catch(e){}
         const msg = (ex && (ex.message || ex.toString())) || "Falha ao abrir a câmera.";
         alert("Erro ao abrir leitor da NF: " + msg);
       }
@@ -1130,7 +1148,7 @@
               const chave = onlyNumbers.substring(0,44);
               document.getElementById("chave").value = chave;
               beepOk();
-              fecharLeitorCompleto();
+              fecharLeitor();
               return;
             }
           }
@@ -1197,14 +1215,13 @@
       );
     }
 
-    // ✅ CORREÇÃO: Nova função para fechar TUDO
-    async function fecharLeitorCompleto() {
-      console.log("Fechando leitor completo...");
+    async function fecharLeitor() {
+      console.log("Fechando leitor...");
       
-      // 1. Primeiro tenta fechar o modal da licença
-      forcarFecharModalLicenca();
+      // ✅ Primeiro tenta fechar o modal da licença se existir
+      tentarFecharModalLicenca();
       
-      // 2. Depois fecha os scanners
+      // ✅ Depois fecha os scanners
       try {
         if (html5Scanner) {
           await html5Scanner.stop();
@@ -1220,12 +1237,12 @@
         console.error("Erro ao parar scanner:", e);
       }
 
-      // 3. Limpa a tela do scanner
+      // ✅ Limpa a tela do scanner
       const scannerDiv = document.getElementById("scanner");
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
 
-      scannerDiv.classList.remove("nf-mode");
+      scannerDiv.classList.remove("nf-mode", "ean-mode", "scanner-paused");
 
       const scannerView = document.getElementById("scanner-view");
       scannerView.classList.remove("scanner-paused");
@@ -1233,19 +1250,20 @@
       const info = document.getElementById("scanner-info");
       info.classList.remove("scanner-info-paused");
 
-      // 4. Esconde tudo
+      // ✅ Esconde tudo
       scannerDiv.style.display = "none";
-      document.getElementById('global-scanner-close').style.display = 'none';
       bloquearBody_(false);
       modoScanner = "";
       
-      // 5. Remove quaisquer modais restantes do Dynamsoft
-      setTimeout(forcarFecharModalLicenca, 100);
-    }
-
-    // ✅ Mantém a função original para compatibilidade
-    async function fecharLeitor() {
-      await fecharLeitorCompleto();
+      // ✅ Remove quaisquer modais restantes do Dynamsoft
+      setTimeout(() => {
+        const modals = document.querySelectorAll('.dce-modal, .dce-dialog, .dce-modal-backdrop');
+        modals.forEach(modal => {
+          if (modal && modal.parentNode) {
+            modal.parentNode.removeChild(modal);
+          }
+        });
+      }, 150);
     }
 
     function adicionarEANManual(){
@@ -1373,7 +1391,7 @@
         if(e.key === "Escape"){
           const scannerDiv = document.getElementById("scanner");
           if(scannerDiv && scannerDiv.style.display === "flex"){
-            fecharLeitorCompleto();
+            fecharLeitor();
           }
         }
       });
