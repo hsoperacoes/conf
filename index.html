@@ -14,11 +14,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js"></script>
   <script>
-    // ✅ LICENÇA REAL (pra não abrir tela de licença)
-    Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJoYW5kc2hha2VDb2RlIjoiMTA1MDEzMzM1LU1UQTFNREV6TXpNMUxYZGxZaTFVY21saGJGQnliMm8iLCJtYWluU2VydmVyVVJMIjoiaHR0cHM6Ly9tZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwib3JnYW5pemF0aW9uSUQiOiIxMDUwMTMzMzUiLCJzdGFuZGJ5U2VydmVyVVJMIjoiaHR0cHM6Ly9zZGxzLmR5bmFtc29mdG9ubGluZS5jb20vIiwiY2hlY2tDb2RlIjoxNzIwODEyNjE2fQ==";
+    // ✅ CONFIGURA A LICENÇA DO DYNAMSOFT ANTES DE QUALQUER USO (CRÍTICO!)
+    // Esta é a licença de teste pública do seu arquivo original
+    Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSJ9";
     console.log("Licença Dynamsoft configurada");
   </script>
-
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
@@ -192,14 +192,8 @@
     }
 
     @keyframes notification-slide-in {
-      from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(-20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-      }
+      from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
 
     @keyframes notification-pulse {
@@ -354,9 +348,30 @@
         padding: 12px 20px;
         width: 95vw;
       }
-      .scanner-notification-ean {
-        font-size: 16px;
-      }
+      .scanner-notification-ean { font-size: 16px; }
+    }
+
+    /* =========================================================
+       ✅ AJUSTE PEDIDO: NF SEM TELA PRETA / SEM CAIXA CENTRAL
+       - some a "caixa preta" (#scanner-view) e a instrução (#scanner-info)
+       - mantém só o leitor rodando + botão fechar
+    ========================================================= */
+    #scanner.nf-mode{
+      background: transparent !important;
+      backdrop-filter: none !important;
+    }
+    #scanner.nf-mode #scanner-view{
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      min-height: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
+    }
+    #scanner.nf-mode #scanner-view::before{ display:none !important; }
+    #scanner.nf-mode #scanner-info{
+      display: none !important;
     }
   </style>
 </head>
@@ -1019,130 +1034,126 @@
       return true;
     }
 
-    // ============================================================
-    // ✅ AQUI É A CORREÇÃO QUE VOCÊ PEDIU:
-    // - NF (44) NÃO abre tela preta / overlay antes do leitor estar pronto
-    // - NF abre overlay TRANSPARENTE (sem "tela preta")
-    // - Se der erro, não fica overlay travado
-    // ============================================================
+    /* =========================================================
+       ✅ AJUSTE PEDIDO:
+       - NF não deve mostrar "tela preta/caixa central" antes
+       - só abre o overlay depois que o Dynamsoft estiver OK
+       - e quando abre, ativa "nf-mode" pra sumir a caixa
+    ========================================================= */
+
     async function abrirLeitor(modo){
-      const scannerDiv  = document.getElementById("scanner");
+      const scannerDiv = document.getElementById("scanner");
       const scannerView = document.getElementById("scanner-view");
-      const info        = document.getElementById("scanner-info");
+      const info = document.getElementById("scanner-info");
 
       modoScanner = modo;
+
+      // ✅ sempre limpa o nf-mode quando abre
+      scannerDiv.classList.remove("nf-mode");
 
       if(modoScanner === "EAN" && !cabecalhoAtual){
         alert("Carregue a NF primeiro.");
         return;
       }
 
-      // prepara UI
-      scannerView.innerHTML = "";
-      info.innerHTML = "";
+      scannerDiv.style.cursor = modoScanner === "EAN" ? "pointer" : "default";
 
-      // ✅ EAN mantém overlay normal (escuro)
+      // ✅ NÃO exibe o overlay imediatamente no modo NF (evita tela preta)
       if (modoScanner === "EAN") {
-        scannerDiv.style.background = "rgba(0, 0, 0, 0.95)";
-        scannerDiv.style.backdropFilter = "blur(8px)";
+        scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
         scannerDiv.style.display = "flex";
         bloquearBody_(true);
 
-        scannerDiv.style.cursor = "pointer";
         info.innerHTML = `
           Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>
           <span class="scanner-info-highlight">Sem travar</span> e com <span class="scanner-info-highlight">bipe instantâneo</span>.
         `;
-
-        try{
-          await pararScannerAtual_();
-          await iniciarHtml5EAN_(scannerView, info);
-        }catch(ex){
-          const msg = (ex && (ex.message || ex.toString())) || "Falha ao abrir a câmera.";
-          info.innerHTML = `❌ Não consegui abrir a câmera.<br/><small style="color:#cbd5e1">${escapeHtml_(msg)}</small>`;
-        }
-        return;
       }
 
-      // ✅ NF: NÃO mostra overlay antes do Dynamsoft estar pronto
-      // (assim você não vê a "tela preta")
       try{
         await pararScannerAtual_();
 
-        // cria instância primeiro (sem overlay)
+        if(modoScanner === "EAN"){
+          await iniciarHtml5EAN_(scannerView, info);
+          return;
+        }
+
+        // =========================
+        // ✅ NF (44 dígitos)
+        // 1) cria/arma o Dynamsoft primeiro (pode abrir tela de licença)
+        // 2) só depois mostra o overlay
+        // =========================
         await iniciarDynamsoftNF_PrepararSomente_();
 
-        // ✅ só agora mostra overlay, e SEM tela preta (transparente)
-        scannerDiv.style.background = "rgba(0,0,0,0)";     // <- sem preto
-        scannerDiv.style.backdropFilter = "none";
+        // ✅ agora mostra overlay já em "nf-mode" (some caixa preta + texto)
+        scannerDiv.classList.add("nf-mode");
         scannerDiv.style.display = "flex";
         bloquearBody_(true);
 
-        scannerDiv.style.cursor = "default";
-        info.innerHTML = "Aponte para o código de barras da NF (chave 44).<br/>Ao ler, fecha automaticamente.";
-
-        // agora pluga o preview no container já visível
+        // ✅ show por último (sem texto/caixa)
         await iniciarDynamsoftNF_ShowNoContainer_(scannerView);
 
       }catch(ex){
-        // se falhar, garante que NÃO fica overlay aberto
+        // ✅ se der qualquer erro (inclusive licença), fecha tudo pra não ficar "travado"
         try{ await fecharLeitor(); }catch(e){}
         const msg = (ex && (ex.message || ex.toString())) || "Falha ao abrir a câmera.";
         alert("Erro ao abrir leitor da NF: " + msg);
       }
     }
 
-    // ✅ parar scanners (corrigido: sem destroyContext que trava reabrir)
     async function pararScannerAtual_(){
-      // Dynamsoft
       try{
         if(scannerInstance){
-          try{ await scannerInstance.hide(); }catch(e){}
-          try{ await scannerInstance.stop(); }catch(e){}
-          try{ await scannerInstance.destroy(); }catch(e){}
+          await scannerInstance.hide().catch(()=>{});
+          await scannerInstance.stop().catch(()=>{});
+          await scannerInstance.destroyContext().catch(()=>{});
           scannerInstance = null;
         }
-      }catch(e){
-        scannerInstance = null;
-      }
+      }catch(e){}
 
-      // Html5Qrcode
       try{
         if(html5Scanner){
-          try{ await html5Scanner.stop(); }catch(e){}
+          await html5Scanner.stop().catch(()=>{});
           html5Scanner = null;
         }
-      }catch(e){
-        html5Scanner = null;
+      }catch(e){}
+    }
+
+    // ✅ NF: prepara (cria instância + callback) — sem show ainda
+    async function iniciarDynamsoftNF_PrepararSomente_(){
+      try {
+        scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
+        await scannerInstance.updateRuntimeSettings("speed");
+
+        scannerInstance.onFrameRead = results => {
+          if(!results || !results.length) return;
+
+          for (let result of results){
+            const code = (result.barcodeText || "").trim();
+            if(!code) continue;
+
+            const onlyNumbers = code.replace(/\D/g,'');
+            if(onlyNumbers.length >= 44){
+              const chave = onlyNumbers.substring(0,44);
+              document.getElementById("chave").value = chave;
+              beepOk();
+              fecharLeitor();
+              return;
+            }
+          }
+        };
+      } catch (err) {
+        console.error("Erro Dynamsoft:", err);
+        if (err && err.message && String(err.message).toLowerCase().includes("license")) {
+          throw new Error("Erro na licença do Dynamsoft. Verifique a configuração.");
+        }
+        throw err;
       }
     }
 
-    // ✅ NF (parte 1): cria instância e handlers (SEM mostrar nada ainda)
-    async function iniciarDynamsoftNF_PrepararSomente_(){
-      scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
-      try{ await scannerInstance.updateRuntimeSettings("speed"); }catch(e){}
-
-      scannerInstance.onFrameRead = results => {
-        if(!results || !results.length) return;
-
-        for (const r of results){
-          const code = (r.barcodeText || "").trim();
-          if(!code) continue;
-
-          const only = code.replace(/\D/g,'');
-          if(only.length >= 44){
-            document.getElementById("chave").value = only.substring(0,44);
-            beepOk();
-            fecharLeitor();
-            return;
-          }
-        }
-      };
-    }
-
-    // ✅ NF (parte 2): mostra no container
+    // ✅ NF: show somente depois de preparado
     async function iniciarDynamsoftNF_ShowNoContainer_(scannerView){
-      scannerView.innerHTML = "";
+      if(!scannerInstance) throw new Error("Scanner não inicializado.");
       await scannerInstance.show(scannerView);
     }
 
@@ -1207,17 +1218,21 @@
           html5Scanner = null;
         }
         if (scannerInstance) {
-          try{ await scannerInstance.hide(); }catch(e){}
-          try{ await scannerInstance.stop(); }catch(e){}
-          try{ await scannerInstance.destroy(); }catch(e){}
+          await scannerInstance.hide().catch(()=>{});
+          await scannerInstance.stop().catch(()=>{});
+          await scannerInstance.destroyContext().catch(()=>{});
           scannerInstance = null;
         }
       } catch (e) {
         console.error("Erro ao parar scanner:", e);
       }
 
+      // ✅ limpa notificações
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
+
+      // ✅ limpa classes visuais
+      scannerDiv.classList.remove("nf-mode");
 
       const scannerView = document.getElementById("scanner-view");
       scannerView.classList.remove("scanner-paused");
@@ -1228,10 +1243,6 @@
       scannerDiv.style.display = "none";
       bloquearBody_(false);
       modoScanner = "";
-
-      // restaura estilo padrão do overlay (pra EAN)
-      scannerDiv.style.background = "rgba(0, 0, 0, 0.95)";
-      scannerDiv.style.backdropFilter = "blur(8px)";
     }
 
     function adicionarEANManual(){
