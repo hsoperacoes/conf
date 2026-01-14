@@ -117,7 +117,7 @@
       height: 100vh;
       position: fixed;
       inset: 0;
-      z-index: 999999; /* Mantido alto, mas não máximo */
+      z-index: 999999; /* Mantido alto */
       display: none;
       justify-content: center;
       align-items: center;
@@ -201,7 +201,7 @@
 
     .scanner-notification i { font-size: 24px; color: #bbf7d0; }
 
-    .scanner-notification-content { display: flex; flex-direction: column; gap: 4px; }
+    .scanner-notification-content { display: flex; flex-direction:column; gap: 4px; }
 
     .scanner-notification-title { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; }
 
@@ -245,33 +245,41 @@
       margin: 0 4px;
     }
 
-    /* ✅ CORREÇÃO: Nosso botão fica ABAIXO do modal de licença do Dynamsoft */
+    /* ✅ CORREÇÃO DEFINITIVA: Nosso botão fica ACIMA de TUDO */
     .scanner-close {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: rgba(17, 24, 39, 0.9);
+      position: fixed; /* ✅ FIXED para garantir posicionamento global */
+      top: 25px; /* ✅ Um pouco mais abaixo para não cobrir */
+      right: 25px;
+      background: rgba(220, 38, 38, 0.95); /* ✅ Vermelho para ser mais visível */
       border-radius: 999px;
-      padding: 10px 14px;
+      padding: 12px 18px;
       font-size: 14px;
-      z-index: 999998; /* ✅ ABAIXO do modal da licença (deixando o modal do Dynamsoft clicável) */
-      border: 1px solid #374151;
+      z-index: 2147483647; /* ✅ Z-INDEX MÁXIMO ABSOLUTO */
+      border: 2px solid #fca5a5;
       backdrop-filter: blur(10px);
       transition: all 0.3s ease;
       cursor: pointer;
       color: white;
+      font-weight: bold;
+      box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .scanner-close:hover { 
-      background: rgba(31, 41, 55, 0.9); 
+      background: rgba(185, 28, 28, 0.95); 
       transform: scale(1.05); 
+      box-shadow: 0 6px 25px rgba(220, 38, 38, 0.6);
     }
 
-    /* ✅ CORREÇÃO: Quando o modal da licença aparecer, nosso botão some */
-    body.modal-licenca-visivel .scanner-close {
-      display: none !important;
-      visibility: hidden !important;
-      opacity: 0 !important;
-      pointer-events: none !important;
+    /* ✅ CORREÇÃO: Garantir que o modal da licença do Dynamsoft fique clicável */
+    .dce-modal, .dce-dialog {
+      z-index: 2147483646 !important; /* ✅ Logo abaixo do nosso botão */
+      pointer-events: auto !important;
+    }
+    
+    .dce-modal-backdrop, .dce-overlay {
+      z-index: 2147483645 !important; /* ✅ Abaixo do modal */
     }
 
     /* ✅ EFEITO DE PAUSA (EAN) */
@@ -336,29 +344,6 @@
     }
     #scanner.nf-mode #scanner-view::before{ display:none !important; }
     #scanner.nf-mode #scanner-info{ display:none !important; }
-
-    /* =========================================================
-       ✅ AJUSTE FINO:
-       - some o botão "X" do Dynamsoft (aquele roxinho)
-       - para não ficar 2 botões de fechar
-       (classes comuns do Dynamsoft Camera Enhancer/UI)
-       ⚠️ REMOVIDO: Vamos deixar o botão do Dynamsoft visível agora
-    ========================================================= */
-    /* REMOVIDO:
-    .dce-btn-close,
-    .dce-btn-close * ,
-    .dce-btn-close-icon,
-    .dce-btn.dce-btn-close,
-    .dce-close,
-    .dce-close *,
-    .dbrScanner .dce-btn-close,
-    .dbrScanner .dce-btn-close *{
-      display:none !important;
-      visibility:hidden !important;
-      opacity:0 !important;
-      pointer-events:none !important;
-    }
-    */
   </style>
 </head>
 
@@ -482,12 +467,15 @@
   </div>
 
   <div id="scanner">
-    <button class="scanner-close" onclick="fecharLeitor()">
-      <i class="fas fa-times"></i> Fechar
-    </button>
+    <!-- ✅ O botão de fechar agora é FIXED e está FORA do #scanner -->
     <div id="scanner-view"></div>
     <div id="scanner-info" class="scanner-info"></div>
   </div>
+
+  <!-- ✅ Botão de fechar FIXED (fora do #scanner) -->
+  <button id="global-scanner-close" class="scanner-close" onclick="fecharLeitorCompleto()" style="display: none;">
+    <i class="fas fa-times"></i> Fechar Scanner
+  </button>
 
   <div id="modal-divergencia" class="modal-overlay">
     <div class="modal-content">
@@ -532,19 +520,42 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
-    // ✅ CORREÇÃO: Detecta quando o modal da licença está visível
-    function verificarModalLicenca() {
-      const modalLicenca = document.querySelector('.dce-modal, .dce-dialog');
-      const estaVisivel = modalLicenca && 
-                         (modalLicenca.offsetParent !== null || 
-                          modalLicenca.style.display !== 'none');
+    // ✅ CORREÇÃO DEFINITIVA: Forçar fechar modal da licença
+    function forcarFecharModalLicenca() {
+      console.log("Tentando fechar modal da licença do Dynamsoft...");
       
-      if (estaVisivel) {
-        document.body.classList.add('modal-licenca-visivel');
-        console.log("Modal de licença visível - nosso botão foi escondido");
-      } else {
-        document.body.classList.remove('modal-licenca-visivel');
+      // Método 1: Clicar no botão de fechar do Dynamsoft se existir
+      const closeButtons = [
+        ...document.querySelectorAll('.dce-btn-close'),
+        ...document.querySelectorAll('.dce-close'),
+        ...document.querySelectorAll('[aria-label="Close"]'),
+        ...document.querySelectorAll('[aria-label="Fechar"]'),
+        ...document.querySelectorAll('button:contains("×")'),
+        ...document.querySelectorAll('.dce-btn.dce-btn-close')
+      ];
+      
+      for (const btn of closeButtons) {
+        if (btn && btn.click) {
+          console.log("Clicando no botão de fechar do Dynamsoft");
+          btn.click();
+          // Dispara eventos também
+          btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
       }
+      
+      // Método 2: Remover os elementos do modal
+      const modals = document.querySelectorAll('.dce-modal, .dce-dialog, .dce-modal-backdrop, .dce-overlay');
+      if (modals.length > 0) {
+        console.log(`Removendo ${modals.length} modais do Dynamsoft`);
+        modals.forEach(modal => {
+          if (modal.parentNode) {
+            modal.parentNode.removeChild(modal);
+          }
+        });
+        return true;
+      }
+      
+      return false;
     }
 
     function eanPermitido_(ean13){
@@ -1035,6 +1046,9 @@
 
       scannerDiv.style.cursor = modoScanner === "EAN" ? "pointer" : "default";
 
+      // ✅ Mostra nosso botão de fechar GLOBAL
+      document.getElementById('global-scanner-close').style.display = 'flex';
+
       if (modoScanner === "EAN") {
         scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
         scannerDiv.style.display = "flex";
@@ -1065,10 +1079,17 @@
         await iniciarDynamsoftNF_ShowNoContainer_(scannerView);
 
         // ✅ CORREÇÃO: Verifica se o modal da licença apareceu
-        setTimeout(verificarModalLicenca, 500);
+        setTimeout(() => {
+          const modalLicenca = document.querySelector('.dce-modal, .dce-dialog');
+          if (modalLicenca) {
+            console.log("Modal de licença detectado, garantindo que nosso botão fique acima");
+            // Garante z-index máximo para nosso botão
+            document.getElementById('global-scanner-close').style.zIndex = '2147483647';
+          }
+        }, 300);
 
       }catch(ex){
-        try{ await fecharLeitor(); }catch(e){}
+        try{ await fecharLeitorCompleto(); }catch(e){}
         const msg = (ex && (ex.message || ex.toString())) || "Falha ao abrir a câmera.";
         alert("Erro ao abrir leitor da NF: " + msg);
       }
@@ -1109,7 +1130,7 @@
               const chave = onlyNumbers.substring(0,44);
               document.getElementById("chave").value = chave;
               beepOk();
-              fecharLeitor();
+              fecharLeitorCompleto();
               return;
             }
           }
@@ -1176,12 +1197,14 @@
       );
     }
 
-    async function fecharLeitor() {
-      const scannerDiv = document.getElementById("scanner");
+    // ✅ CORREÇÃO: Nova função para fechar TUDO
+    async function fecharLeitorCompleto() {
+      console.log("Fechando leitor completo...");
       
-      // ✅ CORREÇÃO: Remove a classe que esconde nosso botão
-      document.body.classList.remove('modal-licenca-visivel');
+      // 1. Primeiro tenta fechar o modal da licença
+      forcarFecharModalLicenca();
       
+      // 2. Depois fecha os scanners
       try {
         if (html5Scanner) {
           await html5Scanner.stop();
@@ -1197,6 +1220,8 @@
         console.error("Erro ao parar scanner:", e);
       }
 
+      // 3. Limpa a tela do scanner
+      const scannerDiv = document.getElementById("scanner");
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
 
@@ -1208,9 +1233,19 @@
       const info = document.getElementById("scanner-info");
       info.classList.remove("scanner-info-paused");
 
+      // 4. Esconde tudo
       scannerDiv.style.display = "none";
+      document.getElementById('global-scanner-close').style.display = 'none';
       bloquearBody_(false);
       modoScanner = "";
+      
+      // 5. Remove quaisquer modais restantes do Dynamsoft
+      setTimeout(forcarFecharModalLicenca, 100);
+    }
+
+    // ✅ Mantém a função original para compatibilidade
+    async function fecharLeitor() {
+      await fecharLeitorCompleto();
     }
 
     function adicionarEANManual(){
@@ -1338,41 +1373,9 @@
         if(e.key === "Escape"){
           const scannerDiv = document.getElementById("scanner");
           if(scannerDiv && scannerDiv.style.display === "flex"){
-            fecharLeitor();
+            fecharLeitorCompleto();
           }
         }
-      });
-      
-      // ✅ CORREÇÃO: Observer para detectar quando o modal da licença aparece
-      const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-          if (mutation.addedNodes.length) {
-            mutation.addedNodes.forEach(function(node) {
-              if (node.nodeType === 1 && 
-                  (node.classList && 
-                   (node.classList.contains('dce-modal') || 
-                    node.classList.contains('dce-dialog') ||
-                    node.classList.contains('dce-modal-backdrop')))) {
-                
-                // Quando o modal da licença aparecer, esconde nosso botão
-                setTimeout(verificarModalLicenca, 100);
-              }
-            });
-          }
-          
-          // Também verifica quando atributos mudam (display, visibility)
-          if (mutation.type === 'attributes' && 
-              (mutation.attributeName === 'style' || mutation.attributeName === 'class')) {
-            setTimeout(verificarModalLicenca, 100);
-          }
-        });
-      });
-      
-      observer.observe(document.body, { 
-        childList: true, 
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style', 'class']
       });
     });
   </script>
