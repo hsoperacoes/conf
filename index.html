@@ -529,6 +529,9 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
+    // ✅ CONFIGURAÇÃO DA LICENÇA DYNAMSOFT (DO SEU ARQUIVO ORIGINAL)
+    const DBR_LICENSE = "DLS2eyJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSJ9";
+
     function eanPermitido_(ean13){
       return /^7900|^7909/.test(String(ean13||""));
     }
@@ -1096,11 +1099,14 @@
       }catch(e){}
     }
 
-    // ✅ SCANNER NF (44 DÍGITOS) - VERSÃO ORIGINAL SIMPLES SEM EFEITOS EAN
+    // ✅ SCANNER NF (44 DÍGITOS) - VERSÃO ORIGINAL COM LICENÇA
     async function iniciarDynamsoftNF_(scannerView) {
       try {
         // ✅ GARANTE QUE NÃO TEM EFEITOS VISUAIS DO MODO EAN
         scannerView.classList.remove("scanner-paused");
+        
+        // ✅ CONFIGURA A LICENÇA DO DYNAMSOFT (DO SEU ARQUIVO ORIGINAL)
+        Dynamsoft.DBR.BarcodeScanner.license = DBR_LICENSE;
         
         // Inicializa o Dynamsoft
         scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
