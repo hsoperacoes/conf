@@ -117,7 +117,7 @@
       height: 100vh;
       position: fixed;
       inset: 0;
-      z-index: 2147483646; /* ✅ Um pouco menor que o botão, mas ainda muito alto */
+      z-index: 999999; /* Mantido alto, mas não máximo */
       display: none;
       justify-content: center;
       align-items: center;
@@ -245,28 +245,33 @@
       margin: 0 4px;
     }
 
-    /* ✅ NOSSO BOTÃO FECHAR (z-index MUITO ALTO para ficar acima do modal de licença) */
+    /* ✅ CORREÇÃO: Nosso botão fica ABAIXO do modal de licença do Dynamsoft */
     .scanner-close {
       position: absolute;
       top: 20px;
       right: 20px;
-      background: rgba(17, 24, 39, 0.95);
+      background: rgba(17, 24, 39, 0.9);
       border-radius: 999px;
-      padding: 12px 16px;
+      padding: 10px 14px;
       font-size: 14px;
-      z-index: 2147483647; /* ✅ Z-INDEX MÁXIMO (acima de TUDO) */
+      z-index: 999998; /* ✅ ABAIXO do modal da licença (deixando o modal do Dynamsoft clicável) */
       border: 1px solid #374151;
       backdrop-filter: blur(10px);
       transition: all 0.3s ease;
       cursor: pointer;
       color: white;
-      font-weight: bold;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     }
     .scanner-close:hover { 
-      background: rgba(31, 41, 55, 0.95); 
+      background: rgba(31, 41, 55, 0.9); 
       transform: scale(1.05); 
-      box-shadow: 0 6px 25px rgba(0, 0, 0, 0.6);
+    }
+
+    /* ✅ CORREÇÃO: Quando o modal da licença aparecer, nosso botão some */
+    body.modal-licenca-visivel .scanner-close {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
 
     /* ✅ EFEITO DE PAUSA (EAN) */
@@ -337,7 +342,9 @@
        - some o botão "X" do Dynamsoft (aquele roxinho)
        - para não ficar 2 botões de fechar
        (classes comuns do Dynamsoft Camera Enhancer/UI)
+       ⚠️ REMOVIDO: Vamos deixar o botão do Dynamsoft visível agora
     ========================================================= */
+    /* REMOVIDO:
     .dce-btn-close,
     .dce-btn-close * ,
     .dce-btn-close-icon,
@@ -351,6 +358,7 @@
       opacity:0 !important;
       pointer-events:none !important;
     }
+    */
   </style>
 </head>
 
@@ -524,30 +532,19 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
-    // ✅ Adicionar esta função para forçar fechar qualquer modal do Dynamsoft
-    function forcarFecharModalLicenca() {
-      // Tenta fechar o modal do Dynamsoft se existir
-      const dceModal = document.querySelector('.dce-modal');
-      const dceDialog = document.querySelector('.dce-dialog');
+    // ✅ CORREÇÃO: Detecta quando o modal da licença está visível
+    function verificarModalLicenca() {
+      const modalLicenca = document.querySelector('.dce-modal, .dce-dialog');
+      const estaVisivel = modalLicenca && 
+                         (modalLicenca.offsetParent !== null || 
+                          modalLicenca.style.display !== 'none');
       
-      if (dceModal || dceDialog) {
-        // Tenta disparar evento de fechar
-        const closeBtn = document.querySelector('.dce-btn-close, .dce-close, [aria-label="Close"]');
-        if (closeBtn) {
-          closeBtn.click();
-        }
-        
-        // Remove qualquer modal do Dynamsoft
-        if (dceModal) dceModal.remove();
-        if (dceDialog) dceDialog.remove();
-        
-        // Remove qualquer overlay de modal
-        const overlays = document.querySelectorAll('.dce-modal-backdrop, .dce-overlay');
-        overlays.forEach(overlay => overlay.remove());
-        
-        return true;
+      if (estaVisivel) {
+        document.body.classList.add('modal-licenca-visivel');
+        console.log("Modal de licença visível - nosso botão foi escondido");
+      } else {
+        document.body.classList.remove('modal-licenca-visivel');
       }
-      return false;
     }
 
     function eanPermitido_(ean13){
@@ -1067,9 +1064,8 @@
 
         await iniciarDynamsoftNF_ShowNoContainer_(scannerView);
 
-        // ✅ AJUSTE: se aparecer modal de licença e ela não fechar pelo "X",
-        // o usuário SEMPRE consegue sair pelo nosso botão (z-index alto) ou pelo ESC.
-        // (não bloqueia clique no modal)
+        // ✅ CORREÇÃO: Verifica se o modal da licença apareceu
+        setTimeout(verificarModalLicenca, 500);
 
       }catch(ex){
         try{ await fecharLeitor(); }catch(e){}
@@ -1180,14 +1176,12 @@
       );
     }
 
-    // ✅ Modificar a função fecharLeitor para forçar fechar modal de licença primeiro
     async function fecharLeitor() {
       const scannerDiv = document.getElementById("scanner");
       
-      // ✅ PRIMEIRO: tenta fechar qualquer modal de licença do Dynamsoft
-      const fechouModal = forcarFecharModalLicenca();
+      // ✅ CORREÇÃO: Remove a classe que esconde nosso botão
+      document.body.classList.remove('modal-licenca-visivel');
       
-      // ✅ SEGUNDO: fecha o scanner normalmente
       try {
         if (html5Scanner) {
           await html5Scanner.stop();
@@ -1217,11 +1211,6 @@
       scannerDiv.style.display = "none";
       bloquearBody_(false);
       modoScanner = "";
-      
-      // Se fechou um modal de licença, dá um foco extra
-      if (fechouModal) {
-        document.getElementById("chave").focus();
-      }
     }
 
     function adicionarEANManual(){
@@ -1344,7 +1333,7 @@
         }
       }, true);
 
-      // ✅ ESC fecha SEMPRE (resolve "modal de licença não fecha" → você sai pelo ESC)
+      // ✅ ESC fecha SEMPRE
       window.addEventListener("keydown", (e)=>{
         if(e.key === "Escape"){
           const scannerDiv = document.getElementById("scanner");
@@ -1354,7 +1343,7 @@
         }
       });
       
-      // ✅ Observador para detectar quando o Dynamsoft abre modais
+      // ✅ CORREÇÃO: Observer para detectar quando o modal da licença aparece
       const observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
           if (mutation.addedNodes.length) {
@@ -1365,19 +1354,26 @@
                     node.classList.contains('dce-dialog') ||
                     node.classList.contains('dce-modal-backdrop')))) {
                 
-                // Quando um modal do Dynamsoft aparece, garante que nosso botão fique acima
-                const nossoBotao = document.querySelector('.scanner-close');
-                if (nossoBotao) {
-                  nossoBotao.style.zIndex = '2147483647';
-                  nossoBotao.style.pointerEvents = 'auto';
-                }
+                // Quando o modal da licença aparecer, esconde nosso botão
+                setTimeout(verificarModalLicenca, 100);
               }
             });
+          }
+          
+          // Também verifica quando atributos mudam (display, visibility)
+          if (mutation.type === 'attributes' && 
+              (mutation.attributeName === 'style' || mutation.attributeName === 'class')) {
+            setTimeout(verificarModalLicenca, 100);
           }
         });
       });
       
-      observer.observe(document.body, { childList: true, subtree: true });
+      observer.observe(document.body, { 
+        childList: true, 
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class']
+      });
     });
   </script>
 </body>
