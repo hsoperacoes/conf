@@ -13,9 +13,16 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
   <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js"></script>
+  <script>
+    // ✅ CONFIGURA A LICENÇA DO DYNAMSOFT ANTES DE QUALQUER USO (CRÍTICO!)
+    // Esta é a licença de teste pública do seu arquivo original
+    Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSJ9";
+    console.log("Licença Dynamsoft configurada");
+  </script>
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
+    /* ... (todo o CSS permanece igual) ... */
     *{box-sizing:border-box}
     body{
       font-family: Arial, sans-serif;
@@ -281,7 +288,7 @@
       transform: scale(1.05);
     }
 
-    /* ✅ EFEITO DE PAUSA (APENAS PARA EAN - AGORA CORRETO) */
+    /* ✅ EFEITO DE PAUSA (APENAS PARA EAN) */
     .scanner-paused {
       border-color: #0f766e !important;
       animation: paused-glow 2s ease-in-out infinite;
@@ -331,7 +338,7 @@
       border: 1px solid #444; box-shadow:0 10px 30px rgba(0,0,0,0.5);
     }
     .modal-header { color:#f97373; font-size:1.2rem; font-weight:800; margin-bottom:15px; text-align:center; }
-    .modal-body { max-height:300px; overflow-yauto; margin-bottom:20px; font-size:14px; }
+    .modal-body { max-height:300px; overflow-y:auto; margin-bottom:20px; font-size:14px; }
     .modal-item { padding:10px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; gap:10px; }
     .modal-footer { text-align:center; }
 
@@ -529,9 +536,6 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
-    // ✅ CONFIGURAÇÃO DA LICENÇA DYNAMSOFT (DO SEU ARQUIVO ORIGINAL)
-    const DBR_LICENSE = "DLS2eyJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSJ9";
-
     function eanPermitido_(ean13){
       return /^7900|^7909/.test(String(ean13||""));
     }
@@ -543,16 +547,13 @@
 
     // ✅ NOTIFICAÇÃO BONITA DO EAN CAPTURADO (SÓ PARA EAN)
     function mostrarNotificacaoEAN(ean13) {
-      // Só mostra notificação se for modo EAN
       if (modoScanner !== "EAN") return;
       
       const scannerDiv = document.getElementById("scanner");
       
-      // Remove notificação anterior se existir
       const notifAnterior = scannerDiv.querySelector('.scanner-notification');
       if (notifAnterior) notifAnterior.remove();
       
-      // Cria a notificação SUPER BONITA
       const notificacao = document.createElement('div');
       notificacao.className = 'scanner-notification';
       notificacao.innerHTML = `
@@ -566,7 +567,6 @@
       
       scannerDiv.appendChild(notificacao);
       
-      // Remove automaticamente após 3 segundos
       setTimeout(() => {
         if (notificacao.parentNode) {
           notificacao.style.opacity = '0';
@@ -583,7 +583,6 @@
       if (html5Scanner && modoScanner === "EAN") {
         html5Scanner.resume();
         
-        // Atualiza o texto para modo ativo
         const info = document.getElementById("scanner-info");
         info.innerHTML = `
           Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>
@@ -591,11 +590,9 @@
         `;
         info.classList.remove("scanner-info-paused");
         
-        // Remove efeito de pausa
         const scannerView = document.getElementById("scanner-view");
         scannerView.classList.remove("scanner-paused");
         
-        // Remove notificação se ainda existir
         const notif = document.querySelector('.scanner-notification');
         if (notif) notif.remove();
       }
@@ -1014,7 +1011,6 @@
       if(now - last < EAN_COOLDOWN_MS) return false;
       ultimosEan.set(ean, now);
 
-      // limpa mapa pra não crescer infinito
       if(ultimosEan.size > 200){
         for(const [k,v] of ultimosEan){
           if(now - v > 15000) ultimosEan.delete(k);
@@ -1035,21 +1031,16 @@
         return;
       }
 
-      // ✅ REMOVIDO O CURSOR:POINTER DO SCANNER (só para EAN)
       scannerDiv.style.cursor = modoScanner === "EAN" ? "pointer" : "default";
       
-      // ✅ abre overlay
       scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
       scannerDiv.style.display = "flex";
       bloquearBody_(true);
 
-      // ✅ Textos diferentes para NF e EAN
       if (modoScanner === "NF") {
         info.innerHTML = "Aponte para o código de barras da NF (chave 44).";
-        // ✅ REMOVE TODAS AS CLASSES DE ESTILO DO MODO EAN
         scannerView.classList.remove("scanner-paused");
         info.classList.remove("scanner-info-paused");
-        // Remove notificações se existirem
         const notif = document.querySelector('.scanner-notification');
         if (notif) notif.remove();
       } else {
@@ -1099,22 +1090,16 @@
       }catch(e){}
     }
 
-    // ✅ SCANNER NF (44 DÍGITOS) - VERSÃO ORIGINAL COM LICENÇA
+    // ✅ SCANNER NF (44 DÍGITOS) - SIMPLIFICADO E FUNCIONAL
     async function iniciarDynamsoftNF_(scannerView) {
       try {
-        // ✅ GARANTE QUE NÃO TEM EFEITOS VISUAIS DO MODO EAN
         scannerView.classList.remove("scanner-paused");
         
-        // ✅ CONFIGURA A LICENÇA DO DYNAMSOFT (DO SEU ARQUIVO ORIGINAL)
-        Dynamsoft.DBR.BarcodeScanner.license = DBR_LICENSE;
-        
-        // Inicializa o Dynamsoft
+        // ✅ A LICENÇA JÁ FOI CONFIGURADA NO HEAD - AGORA SÓ USA
         scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
         
-        // Configurações para leitura rápida
         await scannerInstance.updateRuntimeSettings("speed");
         
-        // Configura o callback quando ler um código
         scannerInstance.onFrameRead = results => {
           if(!results || !results.length) return;
           
@@ -1122,30 +1107,26 @@
             const code = (result.barcodeText || "").trim();
             if(!code) continue;
             
-            // Extrai apenas números
             const onlyNumbers = code.replace(/\D/g,'');
             
-            // Verifica se tem pelo menos 44 dígitos (chave da NF)
             if(onlyNumbers.length >= 44){
-              // Pega os primeiros 44 dígitos
               const chave = onlyNumbers.substring(0,44);
               document.getElementById("chave").value = chave;
-              
-              // Bipe de confirmação
               beepOk();
-              
-              // Fecha o scanner IMEDIATAMENTE - como no original
               fecharLeitor();
               return;
             }
           }
         };
         
-        // Mostra o scanner na view
         await scannerInstance.show(scannerView);
         
       } catch (err) {
         console.error("Erro Dynamsoft:", err);
+        // Se der erro de licença, mostra mensagem específica
+        if (err.message && err.message.includes("license")) {
+          throw new Error("Erro na licença do Dynamsoft. Verifique a configuração.");
+        }
         throw err;
       }
     }
@@ -1178,16 +1159,10 @@
           processando = true;
           
           try {
-            // ✅ 1. BIPE INSTANTÂNEO
             beepOk();
-            
-            // ✅ 2. NOTIFICAÇÃO SUPER BONITA (SÓ PARA EAN)
             mostrarNotificacaoEAN(ean13);
-            
-            // ✅ 3. REGISTRA NO SERVIDOR
             registrarEANNoServidor_(ean13);
             
-            // ✅ 4. ATUALIZA INFO PARA MODO PAUSA
             info.innerHTML = `
               <i class="fas fa-pause-circle" style="color:#0f766e; margin-right:8px;"></i>
               Scanner <span class="scanner-info-highlight">pausado</span>.<br/>
@@ -1195,13 +1170,8 @@
             `;
             info.classList.add("scanner-info-paused");
             
-            // ✅ 5. PAUSA PARA EVITAR LEITURAS ACIDENTAIS
             await new Promise(resolve => setTimeout(resolve, 100));
-            
-            // ✅ 6. DESABILITA SCANNER TEMPORARIAMENTE
             html5Scanner.pause();
-            
-            // ✅ 7. EFEITO VISUAL DE PAUSA
             scannerView.classList.add("scanner-paused");
             
           } catch (e) {
@@ -1230,11 +1200,9 @@
         console.error("Erro ao parar scanner:", e);
       }
       
-      // Remove notificações (se tiver - só para EAN)
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
       
-      // ✅ REMOVE TODOS OS EFEITOS VISUAIS
       const scannerView = document.getElementById("scanner-view");
       scannerView.classList.remove("scanner-paused");
       
@@ -1266,13 +1234,8 @@
         return;
       }
 
-      // ✅ BIPE NA HORA CERTA
       beepOk();
-
-      // ✅ servidor por trás
       registrarEANNoServidor_(ean13);
-
-      // ✅ Limpa e foca
       inp.value = "";
       inp.focus();
     }
@@ -1386,15 +1349,12 @@
         }
       });
 
-      // ✅ CORREÇÃO DO BOTÃO FECHAR
       document.querySelector('.scanner-close').addEventListener('click', (e) => {
         e.stopPropagation();
         fecharLeitor();
       });
 
-      // ✅ overlay reativa scanner quando clicado (SÓ PARA EAN)
       document.getElementById("scanner").addEventListener("click", (e) => {
-        // Se clicou no fundo (não em botão ou notificação) e é modo EAN
         if ((e.target.id === "scanner" || e.target.closest("#scanner-view")) && modoScanner === "EAN") {
           reativarScannerEAN();
         }
