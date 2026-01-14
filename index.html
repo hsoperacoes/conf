@@ -111,13 +111,13 @@
 
     .campo-pesquisa{margin-top:14px}
 
-    /* ✅ Scanner - CORREÇÃO RADICAL */
+    /* ✅ Scanner base */
     #scanner {
       width: 100vw;
       height: 100vh;
       position: fixed;
       inset: 0;
-      z-index: 1000000; /* Alto, mas não máximo */
+      z-index: 1000000;
       display: none;
       justify-content: center;
       align-items: center;
@@ -126,24 +126,19 @@
       backdrop-filter: blur(8px);
       pointer-events: auto;
     }
-    
-    /* ✅ Quando for modo EAN, mantém o overlay escuro */
+
+    /* ✅ EAN mantém overlay escuro */
     #scanner.ean-mode {
       background: rgba(0, 0, 0, 0.95);
       backdrop-filter: blur(8px);
+      pointer-events: auto;
     }
-    
-    /* ✅ Quando for modo NF, NÃO TEM OVERLAY - só o leitor flutuante */
+
+    /* ✅ NF: sem overlay escuro (mas SEM quebrar vídeo) */
     #scanner.nf-mode {
       background: transparent !important;
       backdrop-filter: none !important;
-      pointer-events: none; /* ✅ IMPORTANTE: permite clicar nos elementos por baixo */
-    }
-
-    /* ✅ Nosso botão de fechar fica FORA do scanner no modo NF */
-    #scanner.nf-mode .scanner-close {
-      pointer-events: auto !important; /* Mas o botão é clicável */
-      z-index: 2147483646; /* Um abaixo do máximo */
+      pointer-events: auto; /* ✅ não pode ser none, senão o vídeo/scan pode falhar */
     }
 
     #scanner-view {
@@ -165,15 +160,12 @@
     #scanner-view::before {
       content: '';
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
+      top: 0; left: 0; right: 0;
       height: 4px;
       background: linear-gradient(90deg, #673ab7, #0f766e, #673ab7);
       background-size: 200% 100%;
       animation: scanner-glow 3s linear infinite;
     }
-
     @keyframes scanner-glow {
       0% { background-position: 0% 0; }
       100% { background-position: 200% 0; }
@@ -207,25 +199,18 @@
       max-width: 90vw;
       text-align: center;
     }
-
     @keyframes notification-slide-in {
       from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
       to { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-
     @keyframes notification-pulse {
       0%, 100% { box-shadow: 0 10px 30px rgba(15, 118, 110, 0.4); }
       50% { box-shadow: 0 10px 40px rgba(15, 118, 110, 0.6); }
     }
-
     .scanner-notification i { font-size: 24px; color: #bbf7d0; }
-
     .scanner-notification-content { display: flex; flex-direction:column; gap: 4px; }
-
     .scanner-notification-title { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; }
-
     .scanner-notification-subtitle { font-size: 13px; opacity: 0.9; color: #d1fae5; }
-
     .scanner-notification-ean {
       background: rgba(0, 0, 0, 0.3);
       padding: 8px 15px;
@@ -253,7 +238,6 @@
       backdrop-filter: blur(10px);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     }
-
     .scanner-info-highlight {
       color: #bbf7d0;
       font-weight: 700;
@@ -264,7 +248,7 @@
       margin: 0 4px;
     }
 
-    /* ✅ Botão de fechar - CORREÇÃO RADICAL */
+    /* ✅ Botão de fechar */
     .scanner-close {
       position: fixed;
       top: 20px;
@@ -273,7 +257,7 @@
       border-radius: 999px;
       padding: 12px 18px;
       font-size: 14px;
-      z-index: 2147483645; /* Abaixo do modal da licença */
+      z-index: 2147483645;
       border: 2px solid #fca5a5;
       backdrop-filter: blur(10px);
       transition: all 0.3s ease;
@@ -286,26 +270,25 @@
       gap: 8px;
       pointer-events: auto;
     }
-    .scanner-close:hover { 
-      background: rgba(185, 28, 28, 0.95); 
-      transform: scale(1.05); 
+    .scanner-close:hover {
+      background: rgba(185, 28, 28, 0.95);
+      transform: scale(1.05);
       box-shadow: 0 6px 25px rgba(220, 38, 38, 0.6);
     }
 
-    /* ✅ CORREÇÃO CRÍTICA: Modal da licença fica com z-index MÁXIMO */
+    /* ✅ Modal licenca Dynamsoft no topo */
     .dce-modal, .dce-dialog {
-      z-index: 2147483647 !important; /* MÁXIMO */
+      z-index: 2147483647 !important;
       position: fixed !important;
       pointer-events: auto !important;
     }
-    
     .dce-modal-backdrop {
-      z-index: 2147483646 !important; /* Logo abaixo do modal */
+      z-index: 2147483646 !important;
       position: fixed !important;
       inset: 0 !important;
     }
 
-    /* ✅ EFEITO DE PAUSA (EAN) */
+    /* ✅ EFEITO PAUSA (EAN) */
     .scanner-paused {
       border-color: #0f766e !important;
       animation: paused-glow 2s ease-in-out infinite;
@@ -347,20 +330,13 @@
       .scanner-notification-ean { font-size: 16px; }
     }
 
-    /* =========================================================
-       ✅ AJUSTE PEDIDO (NF):
-       - some caixa preta (#scanner-view) + instrução (#scanner-info)
-       - mantém só o leitor rodando + nosso botão FECHAR
-       - NÃO TEM OVERLAY ESCURO
-    ========================================================= */
+    /* ✅ NF: tira “caixa” mas NÃO zera o tamanho */
     #scanner.nf-mode #scanner-view{
       background: transparent !important;
       border: none !important;
       box-shadow: none !important;
       padding: 0 !important;
-      min-height: 0 !important;
-      height: 0 !important;
-      overflow: hidden !important;
+      min-height: 320px !important; /* ✅ precisa existir para o vídeo */
     }
     #scanner.nf-mode #scanner-view::before{ display:none !important; }
     #scanner.nf-mode #scanner-info{ display:none !important; }
@@ -537,34 +513,30 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
-    // ✅ CORREÇÃO: Simples função para fechar o modal da licença
+    // ✅ NUNCA mais usar localStorage para scans (só login).
+    function limparStoragesAntigosDeScan_(){
+      try{
+        const prefixes = ["nf_scans_", "scans_nf_", "mapaScan_", "HS_SCAN_", "HS_SYNC_LOCAL_"];
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (prefixes.some(p => k.startsWith(p))) localStorage.removeItem(k);
+        }
+      }catch(e){}
+    }
+
     function tentarFecharModalLicenca() {
-      console.log("Tentando fechar modal de licença...");
-      
-      // Procura e clica no botão "X" do Dynamsoft
       const closeButtons = document.querySelectorAll('.dce-btn-close, .dce-close, [aria-label="Close"], [aria-label="Fechar"]');
       closeButtons.forEach(btn => {
         if (btn && btn.click) {
-          console.log("Clicando no botão de fechar do Dynamsoft");
           btn.click();
-          // Força o clique
-          const event = new MouseEvent('click', {
-            view: window,
-            bubbles: true,
-            cancelable: true
-          });
+          const event = new MouseEvent('click', { view: window, bubbles: true, cancelable: true });
           btn.dispatchEvent(event);
         }
       });
-      
-      // Alternativa: Remove os modais
       setTimeout(() => {
         const modals = document.querySelectorAll('.dce-modal, .dce-dialog, .dce-modal-backdrop');
-        modals.forEach(modal => {
-          if (modal && modal.parentNode) {
-            modal.parentNode.removeChild(modal);
-          }
-        });
+        modals.forEach(modal => { if (modal && modal.parentNode) modal.parentNode.removeChild(modal); });
       }, 100);
     }
 
@@ -574,6 +546,14 @@
 
     function bloquearBody_(on){
       document.body.style.overflow = on ? "hidden" : "";
+    }
+
+    function mostrarMsgTopo_(texto, ms=2200){
+      const msg = document.getElementById("msg");
+      msg.textContent = texto;
+      msg.classList.remove("hidden");
+      clearTimeout(mostrarMsgTopo_._t);
+      mostrarMsgTopo_._t = setTimeout(()=>{ msg.classList.add("hidden"); }, ms);
     }
 
     function mostrarNotificacaoEAN(ean13) {
@@ -662,6 +642,7 @@
     }
 
     async function carregarNF(){
+      limparStoragesAntigosDeScan_(); // ✅ garante que nada “local” interfira
       const chave = document.getElementById("chave").value.trim();
       const erro = document.getElementById("erro");
       const loading = document.getElementById("loading");
@@ -686,7 +667,7 @@
 
         cabecalhoAtual = data.cabecalho;
         itensNF = data.itens || [];
-        mapaScan = {};
+        mapaScan = {}; // ✅ sempre começa limpo e puxa do banco via sync
 
         document.getElementById("resumo-nf").innerHTML = `
           <strong>NF:</strong> ${cabecalhoAtual.numeroNF} |
@@ -828,7 +809,15 @@
       document.getElementById("btn-enviar").classList.remove("hidden");
 
       const divergencias = lista.filter(i => i.diff !== 0);
-      if(divergencias.length > 0) abrirModal(divergencias);
+
+      // ✅ NOVO: se não houver divergência, mostra mensagem NF OK
+      if(divergencias.length === 0){
+        mostrarMsgTopo_("✅ NF OK — sem divergências na conferência.", 2600);
+        // opcional: abre nada, só confirma
+        return;
+      }
+
+      abrirModal(divergencias);
     }
 
     function abrirModal(divergencias){
@@ -889,7 +878,10 @@
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
       render(montarListaConferencia(jaConferido));
-      puxarSyncAgora_();
+
+      // ✅ força sync reconstruído do banco (ignora cache)
+      puxarSyncAgora_(true);
+
       alert("Zerado (servidor + tela).");
     }
 
@@ -935,8 +927,8 @@
       if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
       syncAtivo = true;
       ultimoSyncHash = "";
-      puxarSyncAgora_();
-      syncTimer = setInterval(() => { puxarSyncAgora_(); }, 1100);
+      puxarSyncAgora_(true);
+      syncTimer = setInterval(() => { puxarSyncAgora_(false); }, 1100);
     }
 
     function pararSync_(){
@@ -952,13 +944,14 @@
       return s;
     }
 
-    async function puxarSyncAgora_(){
+    async function puxarSyncAgora_(force){
       if(!syncAtivo || !cabecalhoAtual) return;
       const chave = String(cabecalhoAtual.chaveAcesso || "").trim();
       if(!chave || chave.length !== 44) return;
 
       try{
-        const resp = await fetch(`${URL_API}?api=sincronizarBipes&chave=${encodeURIComponent(chave)}&t=${Date.now()}`);
+        const url = `${URL_API}?api=sincronizarBipes&chave=${encodeURIComponent(chave)}&force=${force ? "1" : "0"}&t=${Date.now()}`;
+        const resp = await fetch(url);
         const data = await resp.json();
         if(!data || !data.success) throw new Error("sync fail");
 
@@ -1000,7 +993,9 @@
         if(data && data.success){
           const naNota = itensNF.some(i => String(i.ean || "") === String(ean));
           if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
-          puxarSyncAgora_();
+
+          // ✅ força reconstrução do banco quando bipa (evita “ficar preso” em cache)
+          puxarSyncAgora_(true);
         }
       })
       .catch(()=>{});
@@ -1047,10 +1042,9 @@
       const info = document.getElementById("scanner-info");
 
       modoScanner = modo;
-      
-      // ✅ CORREÇÃO: Remove classes anteriores
+
       scannerDiv.classList.remove("nf-mode", "ean-mode");
-      
+
       if(modoScanner === "EAN" && !cabecalhoAtual){
         alert("Carregue a NF primeiro.");
         return;
@@ -1059,7 +1053,6 @@
       scannerDiv.style.cursor = modoScanner === "EAN" ? "pointer" : "default";
 
       if (modoScanner === "EAN") {
-        // ✅ Modo EAN: com overlay escuro
         scannerDiv.classList.add("ean-mode");
         scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
         scannerDiv.style.display = "flex";
@@ -1070,8 +1063,8 @@
           <span class="scanner-info-highlight">Sem travar</span> e com <span class="scanner-info-highlight">bipe instantâneo</span>.
         `;
       } else {
-        // ✅ Modo NF: SEM overlay escuro
         scannerDiv.classList.add("nf-mode");
+        scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
       }
 
       try{
@@ -1082,26 +1075,21 @@
           return;
         }
 
-        // ✅ NF: prepara primeiro (pode abrir modal de licença)
+        // ✅ NF
         await iniciarDynamsoftNF_PrepararSomente_();
 
-        // ✅ Mostra o scanner (mas SEM overlay escuro no modo NF)
         scannerDiv.style.display = "flex";
         bloquearBody_(true);
 
         await iniciarDynamsoftNF_ShowNoContainer_(scannerView);
 
-        // ✅ CORREÇÃO: Espera um pouco e ajusta o z-index do nosso botão
         setTimeout(() => {
           const modalLicenca = document.querySelector('.dce-modal, .dce-dialog');
           const nossoBotao = document.querySelector('.scanner-close');
-          
+
           if (modalLicenca) {
-            console.log("Modal de licença detectado");
-            // Nosso botão fica um pouco abaixo do modal
             if (nossoBotao) nossoBotao.style.zIndex = '2147483645';
           } else if (nossoBotao) {
-            // Sem modal, nosso botão fica no topo
             nossoBotao.style.zIndex = '2147483646';
           }
         }, 300);
@@ -1136,6 +1124,7 @@
         scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
         await scannerInstance.updateRuntimeSettings("speed");
 
+        // ✅ NF geralmente é Code128 (barra 44 dígitos). Dynamsoft lê bem com speed.
         scannerInstance.onFrameRead = results => {
           if(!results || !results.length) return;
 
@@ -1216,12 +1205,8 @@
     }
 
     async function fecharLeitor() {
-      console.log("Fechando leitor...");
-      
-      // ✅ Primeiro tenta fechar o modal da licença se existir
       tentarFecharModalLicenca();
-      
-      // ✅ Depois fecha os scanners
+
       try {
         if (html5Scanner) {
           await html5Scanner.stop();
@@ -1233,11 +1218,8 @@
           await scannerInstance.destroyContext().catch(()=>{});
           scannerInstance = null;
         }
-      } catch (e) {
-        console.error("Erro ao parar scanner:", e);
-      }
+      } catch (e) {}
 
-      // ✅ Limpa a tela do scanner
       const scannerDiv = document.getElementById("scanner");
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
@@ -1250,19 +1232,13 @@
       const info = document.getElementById("scanner-info");
       info.classList.remove("scanner-info-paused");
 
-      // ✅ Esconde tudo
       scannerDiv.style.display = "none";
       bloquearBody_(false);
       modoScanner = "";
-      
-      // ✅ Remove quaisquer modais restantes do Dynamsoft
+
       setTimeout(() => {
         const modals = document.querySelectorAll('.dce-modal, .dce-dialog, .dce-modal-backdrop');
-        modals.forEach(modal => {
-          if (modal && modal.parentNode) {
-            modal.parentNode.removeChild(modal);
-          }
-        });
+        modals.forEach(modal => { if (modal && modal.parentNode) modal.parentNode.removeChild(modal); });
       }, 150);
     }
 
@@ -1355,6 +1331,8 @@
     }
 
     window.addEventListener("load", ()=>{
+      limparStoragesAntigosDeScan_();
+
       const f = localStorage.getItem("filial_conf_nf");
       const nome = localStorage.getItem("conferente_conf_nf");
 
@@ -1379,14 +1357,12 @@
         }
       });
 
-      // ✅ clique para reativar (só EAN)
       document.getElementById("scanner").addEventListener("click", (e) => {
         if (modoScanner === "EAN") {
           if (e.target.id === "scanner" || e.target.closest("#scanner-view")) reativarScannerEAN();
         }
       }, true);
 
-      // ✅ ESC fecha SEMPRE
       window.addEventListener("keydown", (e)=>{
         if(e.key === "Escape"){
           const scannerDiv = document.getElementById("scanner");
