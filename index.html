@@ -13,16 +13,9 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 
   <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js"></script>
-  <script>
-    // ✅ CONFIGURA A LICENÇA DO DYNAMSOFT ANTES DE QUALQUER USO (CRÍTICO!)
-    // Esta é a licença de teste pública do seu arquivo original
-    Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSJ9";
-    console.log("Licença Dynamsoft configurada");
-  </script>
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
-    /* ... (todo o CSS permanece igual) ... */
     *{box-sizing:border-box}
     body{
       font-family: Arial, sans-serif;
@@ -113,202 +106,40 @@
 
     .campo-pesquisa{margin-top:14px}
 
-    /* ✅ Scanner */
-    #scanner {
-      width: 100vw;
-      height: 100vh;
-      position: fixed;
-      inset: 0;
-      z-index: 999999;
-      display: none;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      background: rgba(0, 0, 0, 0.95);
-      backdrop-filter: blur(8px);
-    }
-    #scanner * { pointer-events: auto; }
+    /* ✅ Scanner (CORRIGIDO: bloqueia clique no fundo + mostra erro dentro do overlay) */
+    #scanner{
+      width:100vw;height:100vh;position:fixed;inset:0;z-index:999999;
+      display:none;justify-content:center;align-items:center;flex-direction:column;
 
-    #scanner-view {
-      width: min(720px, 92vw);
-      background: #000;
-      border: 2px solid #673ab7;
-      border-radius: 16px;
-      padding: 15px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 340px;
-      cursor: default;
-      box-shadow: 0 20px 60px rgba(103, 58, 183, 0.3);
-      position: relative;
-      overflow: hidden;
-    }
+      /* escurece de verdade e impede clique no fundo */
+      background:rgba(0,0,0,.88);
+      backdrop-filter: blur(2px);
 
-    #scanner-view::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 4px;
-      background: linear-gradient(90deg, #673ab7, #0f766e, #673ab7);
-      background-size: 200% 100%;
-      animation: scanner-glow 3s linear infinite;
+      pointer-events:auto;
+      touch-action:none;
+    }
+    #scanner *{ pointer-events:auto; }
+
+    #scanner-view{
+      width:min(720px,92vw);
+      background:#000;
+      border:1px solid #2b2b2b;
+      border-radius:12px;
+      padding:12px;
+      display:flex;align-items:center;justify-content:center;
+      min-height:320px;
+    }
+    #scanner video,#scanner canvas{
+      width:100% !important;
+      height:auto !important;
+      border-radius:10px;
+      max-width:none !important;
+      max-height:none !important;
     }
 
-    @keyframes scanner-glow {
-      0% { background-position: 0% 0; }
-      100% { background-position: 200% 0; }
-    }
-
-    #scanner video, #scanner canvas {
-      width: 100% !important;
-      height: auto !important;
-      border-radius: 12px;
-      max-width: none !important;
-      max-height: none !important;
-    }
-
-    /* ✅ NOTIFICAÇÃO BONITA DO EAN CAPTURADO (APENAS PARA EAN) */
-    .scanner-notification {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
-      color: white;
-      padding: 15px 25px;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(15, 118, 110, 0.4);
-      z-index: 1000001;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      animation: notification-slide-in 0.5s ease-out, notification-pulse 2s infinite;
-      border: 2px solid rgba(187, 247, 208, 0.3);
-      max-width: 90vw;
-      text-align: center;
-    }
-
-    @keyframes notification-slide-in {
-      from {
-        opacity: 0;
-        transform: translateX(-50%) translateY(-20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(-50%) translateY(0);
-      }
-    }
-
-    @keyframes notification-pulse {
-      0%, 100% { box-shadow: 0 10px 30px rgba(15, 118, 110, 0.4); }
-      50% { box-shadow: 0 10px 40px rgba(15, 118, 110, 0.6); }
-    }
-
-    .scanner-notification i {
-      font-size: 24px;
-      color: #bbf7d0;
-    }
-
-    .scanner-notification-content {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .scanner-notification-title {
-      font-weight: 800;
-      font-size: 16px;
-      letter-spacing: 0.5px;
-    }
-
-    .scanner-notification-subtitle {
-      font-size: 13px;
-      opacity: 0.9;
-      color: #d1fae5;
-    }
-
-    .scanner-notification-ean {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 8px 15px;
-      border-radius: 8px;
-      font-family: monospace;
-      font-size: 18px;
-      font-weight: 900;
-      letter-spacing: 2px;
-      color: #bbf7d0;
-      margin-top: 5px;
-      border: 1px solid rgba(187, 247, 208, 0.2);
-      text-shadow: 0 0 10px rgba(187, 247, 208, 0.5);
-    }
-
-    .scanner-info {
-      margin-top: 20px;
-      font-size: 15px;
-      text-align: center;
-      color: #e5e7eb;
-      max-width: min(720px, 92vw);
-      padding: 15px 20px;
-      background: rgba(31, 41, 55, 0.8);
-      border-radius: 12px;
-      border: 1px solid #374151;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-
-    .scanner-info-highlight {
-      color: #bbf7d0;
-      font-weight: 700;
-      background: rgba(15, 118, 110, 0.2);
-      padding: 2px 8px;
-      border-radius: 6px;
-      display: inline-block;
-      margin: 0 4px;
-    }
-
-    .scanner-close {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: rgba(17, 24, 39, 0.9);
-      border-radius: 999px;
-      padding: 10px 14px;
-      font-size: 14px;
-      z-index: 1000000;
-      border: 1px solid #374151;
-      backdrop-filter: blur(10px);
-      transition: all 0.3s ease;
-      cursor: pointer;
-    }
-
-    .scanner-close:hover {
-      background: rgba(31, 41, 55, 0.9);
-      transform: scale(1.05);
-    }
-
-    /* ✅ EFEITO DE PAUSA (APENAS PARA EAN) */
-    .scanner-paused {
-      border-color: #0f766e !important;
-      animation: paused-glow 2s ease-in-out infinite;
-    }
-
-    @keyframes paused-glow {
-      0%, 100% { 
-        border-color: #0f766e;
-        box-shadow: 0 20px 60px rgba(15, 118, 110, 0.3);
-      }
-      50% { 
-        border-color: #10b981;
-        box-shadow: 0 20px 60px rgba(16, 185, 129, 0.5);
-      }
-    }
-
-    .scanner-info-paused {
-      background: rgba(15, 118, 110, 0.2) !important;
-      border-color: #0f766e !important;
-      color: #bbf7d0 !important;
+    .scanner-info{margin-top:10px;font-size:14px;text-align:center;color:#e5e7eb;max-width:min(720px,92vw)}
+    .scanner-close{
+      position:absolute;top:15px;right:15px;background:#111827;border-radius:999px;padding:8px 12px;font-size:12px
     }
 
     .mini-teste{
@@ -349,14 +180,6 @@
     @media (max-width: 860px){
       .cards{grid-template-columns:1fr}
       .linha-botoes{flex-direction:column}
-      .scanner-notification {
-        top: 10px;
-        padding: 12px 20px;
-        width: 95vw;
-      }
-      .scanner-notification-ean {
-        font-size: 16px;
-      }
     }
   </style>
 </head>
@@ -481,7 +304,7 @@
   </div>
 
   <div id="scanner">
-    <button class="scanner-close" onclick="fecharLeitor()">
+    <button class="scanner-close" onclick="fecharLeitor(); event.stopPropagation();">
       <i class="fas fa-times"></i> Fechar
     </button>
     <div id="scanner-view"></div>
@@ -540,62 +363,9 @@
       return /^7900|^7909/.test(String(ean13||""));
     }
 
-    // ✅ trava o scroll do fundo quando abre o scanner
+    // ✅ (NOVO) trava o scroll do fundo quando abre o scanner
     function bloquearBody_(on){
       document.body.style.overflow = on ? "hidden" : "";
-    }
-
-    // ✅ NOTIFICAÇÃO BONITA DO EAN CAPTURADO (SÓ PARA EAN)
-    function mostrarNotificacaoEAN(ean13) {
-      if (modoScanner !== "EAN") return;
-      
-      const scannerDiv = document.getElementById("scanner");
-      
-      const notifAnterior = scannerDiv.querySelector('.scanner-notification');
-      if (notifAnterior) notifAnterior.remove();
-      
-      const notificacao = document.createElement('div');
-      notificacao.className = 'scanner-notification';
-      notificacao.innerHTML = `
-        <i class="fas fa-check-circle"></i>
-        <div class="scanner-notification-content">
-          <div class="scanner-notification-title">CÓDIGO CAPTURADO!</div>
-          <div class="scanner-notification-subtitle">Clique em qualquer lugar para escanear novamente</div>
-          <div class="scanner-notification-ean">${ean13}</div>
-        </div>
-      `;
-      
-      scannerDiv.appendChild(notificacao);
-      
-      setTimeout(() => {
-        if (notificacao.parentNode) {
-          notificacao.style.opacity = '0';
-          notificacao.style.transform = 'translateX(-50%) translateY(-20px)';
-          setTimeout(() => {
-            if (notificacao.parentNode) notificacao.remove();
-          }, 300);
-        }
-      }, 3000);
-    }
-
-    // ✅ REATIVA O SCANNER APÓS CLIQUE (SÓ PARA EAN)
-    function reativarScannerEAN() {
-      if (html5Scanner && modoScanner === "EAN") {
-        html5Scanner.resume();
-        
-        const info = document.getElementById("scanner-info");
-        info.innerHTML = `
-          Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>
-          <span class="scanner-info-highlight">Sem travar</span> e com <span class="scanner-info-highlight">bipe instantâneo</span>.
-        `;
-        info.classList.remove("scanner-info-paused");
-        
-        const scannerView = document.getElementById("scanner-view");
-        scannerView.classList.remove("scanner-paused");
-        
-        const notif = document.querySelector('.scanner-notification');
-        if (notif) notif.remove();
-      }
     }
 
     function entrar(){
@@ -1011,6 +781,7 @@
       if(now - last < EAN_COOLDOWN_MS) return false;
       ultimosEan.set(ean, now);
 
+      // limpa mapa pra não crescer infinito
       if(ultimosEan.size > 200){
         for(const [k,v] of ultimosEan){
           if(now - v > 15000) ultimosEan.delete(k);
@@ -1031,24 +802,14 @@
         return;
       }
 
-      scannerDiv.style.cursor = modoScanner === "EAN" ? "pointer" : "default";
-      
+      // ✅ abre overlay do jeito certo
       scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
       scannerDiv.style.display = "flex";
       bloquearBody_(true);
 
-      if (modoScanner === "NF") {
-        info.innerHTML = "Aponte para o código de barras da NF (chave 44).";
-        scannerView.classList.remove("scanner-paused");
-        info.classList.remove("scanner-info-paused");
-        const notif = document.querySelector('.scanner-notification');
-        if (notif) notif.remove();
-      } else {
-        info.innerHTML = `
-          Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>
-          <span class="scanner-info-highlight">Sem travar</span> e com <span class="scanner-info-highlight">bipe instantâneo</span>.
-        `;
-      }
+      info.innerHTML = (modoScanner === "NF")
+        ? "Aponte para o código de barras da NF (chave 44)."
+        : "Aponte para o <strong>EAN-13</strong> das peças.<br/><strong>Sem travar</strong> e com <strong>bipe instantâneo</strong>.";
 
       try{
         await pararScannerAtual_();
@@ -1060,6 +821,7 @@
         }
 
       }catch(ex){
+        // ✅ não some silencioso: mostra o erro dentro do overlay
         const msg = (ex && (ex.message || ex.toString())) || "Falha ao abrir a câmera.";
         info.innerHTML = `❌ Não consegui abrir a câmera.<br/><small style="color:#cbd5e1">${escapeHtml_(msg)}</small>`;
         scannerView.innerHTML = `
@@ -1090,49 +852,31 @@
       }catch(e){}
     }
 
-    // ✅ SCANNER NF (44 DÍGITOS) - SIMPLIFICADO E FUNCIONAL
-    async function iniciarDynamsoftNF_(scannerView) {
-      try {
-        scannerView.classList.remove("scanner-paused");
-        
-        // ✅ A LICENÇA JÁ FOI CONFIGURADA NO HEAD - AGORA SÓ USA
-        scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
-        
-        await scannerInstance.updateRuntimeSettings("speed");
-        
-        scannerInstance.onFrameRead = results => {
-          if(!results || !results.length) return;
-          
-          for (let result of results){
-            const code = (result.barcodeText || "").trim();
-            if(!code) continue;
-            
-            const onlyNumbers = code.replace(/\D/g,'');
-            
-            if(onlyNumbers.length >= 44){
-              const chave = onlyNumbers.substring(0,44);
-              document.getElementById("chave").value = chave;
-              beepOk();
-              fecharLeitor();
-              return;
-            }
+    async function iniciarDynamsoftNF_(scannerView){
+      scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
+      await scannerInstance.updateRuntimeSettings("speed");
+
+      scannerInstance.onFrameRead = results => {
+        if(!results || !results.length) return;
+        for (let r of results){
+          const code = (r.barcodeText || "").trim();
+          if(!code) continue;
+
+          const only = code.replace(/\D/g,'');
+          if(only.length >= 44){
+            document.getElementById("chave").value = only.substring(0,44);
+            beepOk();
+            fecharLeitor();
+            return;
           }
-        };
-        
-        await scannerInstance.show(scannerView);
-        
-      } catch (err) {
-        console.error("Erro Dynamsoft:", err);
-        // Se der erro de licença, mostra mensagem específica
-        if (err.message && err.message.includes("license")) {
-          throw new Error("Erro na licença do Dynamsoft. Verifique a configuração.");
         }
-        throw err;
-      }
+      };
+
+      await scannerInstance.show(scannerView);
     }
 
-    // ✅ SCANNER EAN: COM NOTIFICAÇÃO E PAUSA
-    async function iniciarHtml5EAN_(scannerView, info) {
+    // ✅ EAN: BIPE NA HORA + NÃO ESPERA SERVIDOR + NÃO TRAVA
+    async function iniciarHtml5EAN_(scannerView, info){
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(520px, 92vw)"></div>`;
       html5Scanner = new Html5Qrcode("html5-ean");
 
@@ -1142,43 +886,22 @@
         experimentalFeatures: { useBarCodeDetectorIfSupported: true }
       };
 
-      let processando = false;
-
       await html5Scanner.start(
         { facingMode: "environment" },
         config,
-        async (decodedText) => {
-          if (processando || modoScanner !== "EAN") return;
-          
+        (decodedText) => {
+          if(modoScanner !== "EAN") return;
+
           const ean13 = extrairEAN13DoTexto(decodedText);
-          if (!ean13) return;
-          if (!eanPermitido_(ean13)) return;
-          
-          if (!podeProcessarEAN_(ean13)) return;
-          
-          processando = true;
-          
-          try {
-            beepOk();
-            mostrarNotificacaoEAN(ean13);
-            registrarEANNoServidor_(ean13);
-            
-            info.innerHTML = `
-              <i class="fas fa-pause-circle" style="color:#0f766e; margin-right:8px;"></i>
-              Scanner <span class="scanner-info-highlight">pausado</span>.<br/>
-              <small>Clique em qualquer lugar para continuar escaneando.</small>
-            `;
-            info.classList.add("scanner-info-paused");
-            
-            await new Promise(resolve => setTimeout(resolve, 100));
-            html5Scanner.pause();
-            scannerView.classList.add("scanner-paused");
-            
-          } catch (e) {
-            console.error("Erro no processamento:", e);
-          } finally {
-            processando = false;
-          }
+          if(!ean13) return;
+          if(!eanPermitido_(ean13)) return;
+          if(!podeProcessarEAN_(ean13)) return;
+
+          // ✅ BIPE INSTANTÂNEO
+          beepOk();
+
+          // ✅ servidor por trás (não aguarda)
+          registrarEANNoServidor_(ean13);
         },
         ()=>{}
       );
@@ -1186,56 +909,36 @@
 
     async function fecharLeitor(){
       const scannerDiv = document.getElementById("scanner");
-      try {
-        if (html5Scanner) {
-          await html5Scanner.stop();
-          html5Scanner = null;
-        }
-        if (scannerInstance) {
-          await scannerInstance.hide();
-          await scannerInstance.stop();
-          scannerInstance = null;
-        }
-      } catch (e) {
-        console.error("Erro ao parar scanner:", e);
-      }
-      
-      const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
-      notificacoes.forEach(n => n.remove());
-      
-      const scannerView = document.getElementById("scanner-view");
-      scannerView.classList.remove("scanner-paused");
-      
-      const info = document.getElementById("scanner-info");
-      info.classList.remove("scanner-info-paused");
-      
+      await pararScannerAtual_();
       scannerDiv.style.display = "none";
       bloquearBody_(false);
-      modoScanner = "";
     }
 
     function adicionarEANManual(){
-      if (!cabecalhoAtual) {
+      if(!cabecalhoAtual){
         alert("Carregue a NF primeiro.");
         return;
       }
 
       const inp = document.getElementById("ean-manual");
       const ean13 = extrairEAN13DoTexto(inp.value || "");
-      if (!ean13 || !eanPermitido_(ean13)) {
+      if(!ean13 || !eanPermitido_(ean13)){
         inp.value = "";
         inp.focus();
         return;
       }
 
-      if (!podeProcessarEAN_(ean13)) {
-        alert("Aguarde um momento antes de escanear novamente.");
+      if(!podeProcessarEAN_(ean13)){
         inp.value = "";
         return;
       }
 
+      // ✅ BIPE INSTANTÂNEO
       beepOk();
+
+      // ✅ servidor por trás
       registrarEANNoServidor_(ean13);
+
       inp.value = "";
       inp.focus();
     }
@@ -1349,15 +1052,10 @@
         }
       });
 
-      document.querySelector('.scanner-close').addEventListener('click', (e) => {
+      // ✅ (NOVO) segurança extra: overlay nunca deixa clique vazar
+      document.getElementById("scanner").addEventListener("click", (e)=>{
+        e.preventDefault();
         e.stopPropagation();
-        fecharLeitor();
-      });
-
-      document.getElementById("scanner").addEventListener("click", (e) => {
-        if ((e.target.id === "scanner" || e.target.closest("#scanner-view")) && modoScanner === "EAN") {
-          reativarScannerEAN();
-        }
       }, true);
     });
   </script>
