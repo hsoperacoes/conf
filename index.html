@@ -119,7 +119,6 @@
       flex-direction: column;
       background: rgba(0, 0, 0, 0.95);
       backdrop-filter: blur(8px);
-      cursor: pointer;
     }
     #scanner * { pointer-events: auto; }
 
@@ -282,7 +281,7 @@
       transform: scale(1.05);
     }
 
-    /* ✅ EFEITO DE PAUSA (APENAS PARA EAN) */
+    /* ✅ EFEITO DE PAUSA (APENAS PARA EAN - AGORA CORRETO) */
     .scanner-paused {
       border-color: #0f766e !important;
       animation: paused-glow 2s ease-in-out infinite;
@@ -332,7 +331,7 @@
       border: 1px solid #444; box-shadow:0 10px 30px rgba(0,0,0,0.5);
     }
     .modal-header { color:#f97373; font-size:1.2rem; font-weight:800; margin-bottom:15px; text-align:center; }
-    .modal-body { max-height:300px; overflow-y:auto; margin-bottom:20px; font-size:14px; }
+    .modal-body { max-height:300px; overflow-yauto; margin-bottom:20px; font-size:14px; }
     .modal-item { padding:10px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; gap:10px; }
     .modal-footer { text-align:center; }
 
@@ -1033,6 +1032,9 @@
         return;
       }
 
+      // ✅ REMOVIDO O CURSOR:POINTER DO SCANNER (só para EAN)
+      scannerDiv.style.cursor = modoScanner === "EAN" ? "pointer" : "default";
+      
       // ✅ abre overlay
       scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
       scannerDiv.style.display = "flex";
@@ -1041,6 +1043,12 @@
       // ✅ Textos diferentes para NF e EAN
       if (modoScanner === "NF") {
         info.innerHTML = "Aponte para o código de barras da NF (chave 44).";
+        // ✅ REMOVE TODAS AS CLASSES DE ESTILO DO MODO EAN
+        scannerView.classList.remove("scanner-paused");
+        info.classList.remove("scanner-info-paused");
+        // Remove notificações se existirem
+        const notif = document.querySelector('.scanner-notification');
+        if (notif) notif.remove();
       } else {
         info.innerHTML = `
           Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>
@@ -1058,7 +1066,6 @@
         }
 
       }catch(ex){
-        // ✅ não some silencioso: mostra o erro dentro do overlay
         const msg = (ex && (ex.message || ex.toString())) || "Falha ao abrir a câmera.";
         info.innerHTML = `❌ Não consegui abrir a câmera.<br/><small style="color:#cbd5e1">${escapeHtml_(msg)}</small>`;
         scannerView.innerHTML = `
@@ -1089,9 +1096,12 @@
       }catch(e){}
     }
 
-    // ✅ SCANNER NF (44 DÍGITOS) - VERSÃO ORIGINAL SIMPLES
+    // ✅ SCANNER NF (44 DÍGITOS) - VERSÃO ORIGINAL SIMPLES SEM EFEITOS EAN
     async function iniciarDynamsoftNF_(scannerView) {
       try {
+        // ✅ GARANTE QUE NÃO TEM EFEITOS VISUAIS DO MODO EAN
+        scannerView.classList.remove("scanner-paused");
+        
         // Inicializa o Dynamsoft
         scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
         
@@ -1217,6 +1227,13 @@
       // Remove notificações (se tiver - só para EAN)
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
+      
+      // ✅ REMOVE TODOS OS EFEITOS VISUAIS
+      const scannerView = document.getElementById("scanner-view");
+      scannerView.classList.remove("scanner-paused");
+      
+      const info = document.getElementById("scanner-info");
+      info.classList.remove("scanner-info-paused");
       
       scannerDiv.style.display = "none";
       bloquearBody_(false);
