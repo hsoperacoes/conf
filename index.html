@@ -14,7 +14,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/dynamsoft-javascript-barcode@9.6.21/dist/dbr.js"></script>
   <script>
-    // ✅ LICENÇA (mantida)
     Dynamsoft.DBR.BarcodeScanner.license = "DLS2eyJvcmdhbml6YXRpb25JRCI6IjIwMDAwMSJ9";
     console.log("Licença Dynamsoft configurada");
   </script>
@@ -64,6 +63,8 @@
     .btn-secundario:hover{background:#3c4043}
     .btn-ok{background:#0f766e}
     .btn-ok:hover{background:#115e59}
+    .btn-warn{background:#9a3412}
+    .btn-warn:hover{background:#7c2d12}
     .btn-full{width:100%;margin-top:8px}
     .linha-botoes{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 5px}
     .linha-botoes button{flex:1;min-width:160px}
@@ -111,213 +112,105 @@
 
     .campo-pesquisa{margin-top:14px}
 
-    /* ✅ Scanner base */
-    #scanner {
-      width: 100vw;
-      height: 100vh;
-      position: fixed;
-      inset: 0;
-      z-index: 1000000;
-      display: none;
-      justify-content: center;
-      align-items: center;
-      flex-direction: column;
-      background: rgba(0, 0, 0, 0.95);
-      backdrop-filter: blur(8px);
-      pointer-events: auto;
+    /* ===== Scanner container ===== */
+    #scanner{
+      width:100vw;height:100vh;position:fixed;inset:0;
+      z-index:1000000;display:none;justify-content:center;align-items:center;flex-direction:column;
+      background:rgba(0,0,0,.95);backdrop-filter:blur(8px);
+    }
+    #scanner.ean-mode{
+      background:rgba(0,0,0,.95);backdrop-filter:blur(8px);
+    }
+    /* ✅ NF: sem overlay escuro, mas SEM pointer-events none (isso atrapalha a câmera/modal) */
+    #scanner.nf-mode{
+      background:transparent !important;
+      backdrop-filter:none !important;
+      pointer-events:auto !important;
     }
 
-    /* ✅ EAN mantém overlay escuro */
-    #scanner.ean-mode {
-      background: rgba(0, 0, 0, 0.95);
-      backdrop-filter: blur(8px);
-      pointer-events: auto;
+    #scanner-view{
+      width:min(720px,92vw);background:#000;border:2px solid #673ab7;border-radius:16px;padding:15px;
+      display:flex;align-items:center;justify-content:center;min-height:340px;cursor:default;
+      box-shadow:0 20px 60px rgba(103,58,183,.3);position:relative;overflow:hidden;
+    }
+    #scanner-view::before{
+      content:'';position:absolute;top:0;left:0;right:0;height:4px;
+      background:linear-gradient(90deg,#673ab7,#0f766e,#673ab7);
+      background-size:200% 100%;animation:scanner-glow 3s linear infinite;
+    }
+    @keyframes scanner-glow{0%{background-position:0% 0}100%{background-position:200% 0}}
+
+    #scanner video,#scanner canvas{
+      width:100% !important;height:auto !important;border-radius:12px;max-width:none !important;max-height:none !important;
     }
 
-    /* ✅ NF: sem overlay escuro (mas SEM quebrar vídeo) */
-    #scanner.nf-mode {
-      background: transparent !important;
-      backdrop-filter: none !important;
-      pointer-events: auto; /* ✅ não pode ser none, senão o vídeo/scan pode falhar */
+    .scanner-notification{
+      position:absolute;top:20px;left:50%;transform:translateX(-50%);
+      background:linear-gradient(135deg,#0f766e 0%,#115e59 100%);
+      color:#fff;padding:15px 25px;border-radius:12px;box-shadow:0 10px 30px rgba(15,118,110,.4);
+      z-index:1000001;display:flex;align-items:center;gap:12px;
+      animation:notification-slide-in .5s ease-out, notification-pulse 2s infinite;
+      border:2px solid rgba(187,247,208,.3);max-width:90vw;text-align:center;
+    }
+    @keyframes notification-slide-in{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    @keyframes notification-pulse{0%,100%{box-shadow:0 10px 30px rgba(15,118,110,.4)}50%{box-shadow:0 10px 40px rgba(15,118,110,.6)}}
+    .scanner-notification i{font-size:24px;color:#bbf7d0}
+    .scanner-notification-content{display:flex;flex-direction:column;gap:4px}
+    .scanner-notification-title{font-weight:800;font-size:16px;letter-spacing:.5px}
+    .scanner-notification-subtitle{font-size:13px;opacity:.9;color:#d1fae5}
+    .scanner-notification-ean{
+      background:rgba(0,0,0,.3);padding:8px 15px;border-radius:8px;font-family:monospace;font-size:18px;font-weight:900;
+      letter-spacing:2px;color:#bbf7d0;margin-top:5px;border:1px solid rgba(187,247,208,.2);
+      text-shadow:0 0 10px rgba(187,247,208,.5);
     }
 
-    #scanner-view {
-      width: min(720px, 92vw);
-      background: #000;
-      border: 2px solid #673ab7;
-      border-radius: 16px;
-      padding: 15px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 340px;
-      cursor: default;
-      box-shadow: 0 20px 60px rgba(103, 58, 183, 0.3);
-      position: relative;
-      overflow: hidden;
+    .scanner-info{
+      margin-top:20px;font-size:15px;text-align:center;color:#e5e7eb;max-width:min(720px,92vw);
+      padding:15px 20px;background:rgba(31,41,55,.8);border-radius:12px;border:1px solid #374151;
+      backdrop-filter:blur(10px);box-shadow:0 8px 32px rgba(0,0,0,.3);
+    }
+    .scanner-info-highlight{color:#bbf7d0;font-weight:700;background:rgba(15,118,110,.2);padding:2px 8px;border-radius:6px;display:inline-block;margin:0 4px}
+
+    /* ✅ Botão fechar: padrão (EAN) */
+    .scanner-close{
+      position:fixed;top:20px;right:20px;
+      background:rgba(220,38,38,.95);border-radius:999px;padding:12px 18px;font-size:14px;
+      z-index:2147483645;border:2px solid #fca5a5;backdrop-filter:blur(10px);
+      transition:all .3s ease;cursor:pointer;color:#fff;font-weight:bold;
+      box-shadow:0 4px 20px rgba(220,38,38,.4);display:flex;align-items:center;gap:8px;
+    }
+    .scanner-close:hover{background:rgba(185,28,28,.95);transform:scale(1.05);box-shadow:0 6px 25px rgba(220,38,38,.6)}
+
+    /* ✅ NF: joga o fechar pro canto inferior direito pra NÃO cobrir o X do modal da licença */
+    #scanner.nf-mode .scanner-close{
+      top:auto !important;
+      bottom:20px !important;
+      right:20px !important;
+      z-index:2147483644 !important; /* fica abaixo do modal */
     }
 
-    #scanner-view::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 4px;
-      background: linear-gradient(90deg, #673ab7, #0f766e, #673ab7);
-      background-size: 200% 100%;
-      animation: scanner-glow 3s linear infinite;
-    }
-    @keyframes scanner-glow {
-      0% { background-position: 0% 0; }
-      100% { background-position: 200% 0; }
-    }
+    /* ✅ Modal licença sempre no topo */
+    .dce-modal, .dce-dialog{z-index:2147483647 !important;position:fixed !important;pointer-events:auto !important}
+    .dce-modal-backdrop{z-index:2147483646 !important;position:fixed !important;inset:0 !important}
 
-    #scanner video, #scanner canvas {
-      width: 100% !important;
-      height: auto !important;
-      border-radius: 12px;
-      max-width: none !important;
-      max-height: none !important;
+    .scanner-paused{border-color:#0f766e !important;animation:paused-glow 2s ease-in-out infinite}
+    @keyframes paused-glow{
+      0%,100%{border-color:#0f766e;box-shadow:0 20px 60px rgba(15,118,110,.3)}
+      50%{border-color:#10b981;box-shadow:0 20px 60px rgba(16,185,129,.5)}
     }
+    .scanner-info-paused{background:rgba(15,118,110,.2) !important;border-color:#0f766e !important;color:#bbf7d0 !important}
 
-    /* ✅ NOTIFICAÇÃO (EAN) */
-    .scanner-notification {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
-      color: white;
-      padding: 15px 25px;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(15, 118, 110, 0.4);
-      z-index: 1000001;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      animation: notification-slide-in 0.5s ease-out, notification-pulse 2s infinite;
-      border: 2px solid rgba(187, 247, 208, 0.3);
-      max-width: 90vw;
-      text-align: center;
-    }
-    @keyframes notification-slide-in {
-      from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-      to { opacity: 1; transform: translateX(-50%) translateY(0); }
-    }
-    @keyframes notification-pulse {
-      0%, 100% { box-shadow: 0 10px 30px rgba(15, 118, 110, 0.4); }
-      50% { box-shadow: 0 10px 40px rgba(15, 118, 110, 0.6); }
-    }
-    .scanner-notification i { font-size: 24px; color: #bbf7d0; }
-    .scanner-notification-content { display: flex; flex-direction:column; gap: 4px; }
-    .scanner-notification-title { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; }
-    .scanner-notification-subtitle { font-size: 13px; opacity: 0.9; color: #d1fae5; }
-    .scanner-notification-ean {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 8px 15px;
-      border-radius: 8px;
-      font-family: monospace;
-      font-size: 18px;
-      font-weight: 900;
-      letter-spacing: 2px;
-      color: #bbf7d0;
-      margin-top: 5px;
-      border: 1px solid rgba(187, 247, 208, 0.2);
-      text-shadow: 0 0 10px rgba(187, 247, 208, 0.5);
-    }
-
-    .scanner-info {
-      margin-top: 20px;
-      font-size: 15px;
-      text-align: center;
-      color: #e5e7eb;
-      max-width: min(720px, 92vw);
-      padding: 15px 20px;
-      background: rgba(31, 41, 55, 0.8);
-      border-radius: 12px;
-      border: 1px solid #374151;
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-    .scanner-info-highlight {
-      color: #bbf7d0;
-      font-weight: 700;
-      background: rgba(15, 118, 110, 0.2);
-      padding: 2px 8px;
-      border-radius: 6px;
-      display: inline-block;
-      margin: 0 4px;
-    }
-
-    /* ✅ Botão de fechar */
-    .scanner-close {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: rgba(220, 38, 38, 0.95);
-      border-radius: 999px;
-      padding: 12px 18px;
-      font-size: 14px;
-      z-index: 2147483645;
-      border: 2px solid #fca5a5;
-      backdrop-filter: blur(10px);
-      transition: all 0.3s ease;
-      cursor: pointer;
-      color: white;
-      font-weight: bold;
-      box-shadow: 0 4px 20px rgba(220, 38, 38, 0.4);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      pointer-events: auto;
-    }
-    .scanner-close:hover {
-      background: rgba(185, 28, 28, 0.95);
-      transform: scale(1.05);
-      box-shadow: 0 6px 25px rgba(220, 38, 38, 0.6);
-    }
-
-    /* ✅ Modal licenca Dynamsoft no topo */
-    .dce-modal, .dce-dialog {
-      z-index: 2147483647 !important;
-      position: fixed !important;
-      pointer-events: auto !important;
-    }
-    .dce-modal-backdrop {
-      z-index: 2147483646 !important;
-      position: fixed !important;
-      inset: 0 !important;
-    }
-
-    /* ✅ EFEITO PAUSA (EAN) */
-    .scanner-paused {
-      border-color: #0f766e !important;
-      animation: paused-glow 2s ease-in-out infinite;
-    }
-    @keyframes paused-glow {
-      0%, 100% { border-color: #0f766e; box-shadow: 0 20px 60px rgba(15, 118, 110, 0.3); }
-      50% { border-color: #10b981; box-shadow: 0 20px 60px rgba(16, 185, 129, 0.5); }
-    }
-    .scanner-info-paused { background: rgba(15, 118, 110, 0.2) !important; border-color: #0f766e !important; color: #bbf7d0 !important; }
-
-    .mini-teste{
-      margin-top:10px;padding:10px;border:1px dashed #444;border-radius:10px;background:#1b1b1b;
-    }
+    .mini-teste{margin-top:10px;padding:10px;border:1px dashed #444;border-radius:10px;background:#1b1b1b}
     .mini-teste .row{align-items:center}
     .mini-teste input{margin:0}
     .mini-teste button{min-width:160px}
 
-    .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-      display: none; justify-content: center; align-items: center; z-index: 2000;
-    }
-    .modal-content {
-      background: #1e1e1e; padding: 25px; border-radius: 12px; width: 90%; max-width: 600px;
-      border: 1px solid #444; box-shadow:0 10px 30px rgba(0,0,0,0.5);
-    }
-    .modal-header { color:#f97373; font-size:1.2rem; font-weight:800; margin-bottom:15px; text-align:center; }
-    .modal-body { max-height:300px; overflow-y:auto; margin-bottom:20px; font-size:14px; }
-    .modal-item { padding:10px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; gap:10px; }
-    .modal-footer { text-align:center; }
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;justify-content:center;align-items:center;z-index:2000}
+    .modal-content{background:#1e1e1e;padding:25px;border-radius:12px;width:90%;max-width:600px;border:1px solid #444;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+    .modal-header{color:#f97373;font-size:1.2rem;font-weight:800;margin-bottom:15px;text-align:center}
+    .modal-body{max-height:300px;overflow-y:auto;margin-bottom:20px;font-size:14px}
+    .modal-item{padding:10px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .modal-footer{text-align:center}
 
     footer{
       text-align:center;font-size:13px;color:#ccc;background:#2c2c2c;padding:10px 15px;border-radius:6px;margin:10px;max-width:980px;width:100%;
@@ -326,20 +219,17 @@
     @media (max-width: 860px){
       .cards{grid-template-columns:1fr}
       .linha-botoes{flex-direction:column}
-      .scanner-notification { top: 10px; padding: 12px 20px; width: 95vw; }
-      .scanner-notification-ean { font-size: 16px; }
+      .scanner-notification{top:10px;padding:12px 20px;width:95vw}
+      .scanner-notification-ean{font-size:16px}
     }
 
-    /* ✅ NF: tira “caixa” mas NÃO zera o tamanho */
+    /* NF: remove caixa preta e info */
     #scanner.nf-mode #scanner-view{
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      padding: 0 !important;
-      min-height: 320px !important; /* ✅ precisa existir para o vídeo */
+      background:transparent !important;border:none !important;box-shadow:none !important;padding:0 !important;
+      min-height:0 !important;height:0 !important;overflow:hidden !important;
     }
-    #scanner.nf-mode #scanner-view::before{ display:none !important; }
-    #scanner.nf-mode #scanner-info{ display:none !important; }
+    #scanner.nf-mode #scanner-view::before{display:none !important}
+    #scanner.nf-mode #scanner-info{display:none !important}
   </style>
 </head>
 
@@ -419,6 +309,13 @@
                 </button>
                 <button class="btn-secundario" onclick="limparScans()">
                   <i class="fas fa-eraser"></i> Zerar Scans
+                </button>
+              </div>
+
+              <!-- ✅ voltou: ajuste manual -->
+              <div class="linha-botoes">
+                <button class="btn-warn btn-full" onclick="ajusteManualPrompt()">
+                  <i class="fas fa-wrench"></i> Ajustar item (manual)
                 </button>
               </div>
 
@@ -513,34 +410,12 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
-    // ✅ NUNCA mais usar localStorage para scans (só login).
-    function limparStoragesAntigosDeScan_(){
-      try{
-        const prefixes = ["nf_scans_", "scans_nf_", "mapaScan_", "HS_SCAN_", "HS_SYNC_LOCAL_"];
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (!k) continue;
-          if (prefixes.some(p => k.startsWith(p))) localStorage.removeItem(k);
-        }
-      }catch(e){}
-    }
-
-    function tentarFecharModalLicenca() {
-      const closeButtons = document.querySelectorAll('.dce-btn-close, .dce-close, [aria-label="Close"], [aria-label="Fechar"]');
-      closeButtons.forEach(btn => {
-        if (btn && btn.click) {
-          btn.click();
-          const event = new MouseEvent('click', { view: window, bubbles: true, cancelable: true });
-          btn.dispatchEvent(event);
-        }
-      });
-      setTimeout(() => {
-        const modals = document.querySelectorAll('.dce-modal, .dce-dialog, .dce-modal-backdrop');
-        modals.forEach(modal => { if (modal && modal.parentNode) modal.parentNode.removeChild(modal); });
-      }, 100);
-    }
+    // ✅ refresh do banco NF (itens) em tempo real
+    let nfRefreshTimer = null;
+    let ultimoHashNF = "";
 
     function eanPermitido_(ean13){
+      // mantém sua regra de prefixo
       return /^7900|^7909/.test(String(ean13||""));
     }
 
@@ -548,12 +423,17 @@
       document.body.style.overflow = on ? "hidden" : "";
     }
 
-    function mostrarMsgTopo_(texto, ms=2200){
-      const msg = document.getElementById("msg");
-      msg.textContent = texto;
-      msg.classList.remove("hidden");
-      clearTimeout(mostrarMsgTopo_._t);
-      mostrarMsgTopo_._t = setTimeout(()=>{ msg.classList.add("hidden"); }, ms);
+    function setMsg_(texto, ok=false){
+      const el = document.getElementById("msg");
+      if(!texto){
+        el.classList.add("hidden");
+        el.textContent = "";
+        return;
+      }
+      el.textContent = texto;
+      el.classList.remove("hidden");
+      el.style.color = ok ? "#bbf7d0" : "#1a73e8";
+      el.style.fontWeight = ok ? "800" : "normal";
     }
 
     function mostrarNotificacaoEAN(ean13) {
@@ -607,14 +487,8 @@
       const f = document.getElementById("codigo-filial").value.trim();
       const nome = document.getElementById("nome-conferente").value.trim();
 
-      if(!filiaisValidas.includes(f)){
-        alert("Código de filial inválido.");
-        return;
-      }
-      if(!nome){
-        alert("Informe o nome do conferente.");
-        return;
-      }
+      if(!filiaisValidas.includes(f)){ alert("Código de filial inválido."); return; }
+      if(!nome){ alert("Informe o nome do conferente."); return; }
 
       filialAtual = f;
       conferenteAtual = nome;
@@ -636,13 +510,13 @@
     function sair(){
       if(!confirm("Deseja sair?")) return;
       pararSync_();
+      pararNFRefresh_();
       localStorage.removeItem("filial_conf_nf");
       localStorage.removeItem("conferente_conf_nf");
       location.reload();
     }
 
     async function carregarNF(){
-      limparStoragesAntigosDeScan_(); // ✅ garante que nada “local” interfira
       const chave = document.getElementById("chave").value.trim();
       const erro = document.getElementById("erro");
       const loading = document.getElementById("loading");
@@ -654,10 +528,12 @@
       }
 
       erro.textContent = "";
+      setMsg_("");
       loading.classList.remove("hidden");
       painel.classList.add("hidden");
 
       pararSync_();
+      pararNFRefresh_();
       document.getElementById("kpi-sync").textContent = "—";
 
       try {
@@ -667,7 +543,7 @@
 
         cabecalhoAtual = data.cabecalho;
         itensNF = data.itens || [];
-        mapaScan = {}; // ✅ sempre começa limpo e puxa do banco via sync
+        mapaScan = {}; // sempre “zera local” -> vai vir do sync
 
         document.getElementById("resumo-nf").innerHTML = `
           <strong>NF:</strong> ${cabecalhoAtual.numeroNF} |
@@ -681,6 +557,7 @@
         render(montarListaConferencia(false));
 
         iniciarSync_();
+        iniciarNFRefresh_();
 
       } catch(err) {
         erro.textContent = err.message;
@@ -810,14 +687,13 @@
 
       const divergencias = lista.filter(i => i.diff !== 0);
 
-      // ✅ NOVO: se não houver divergência, mostra mensagem NF OK
-      if(divergencias.length === 0){
-        mostrarMsgTopo_("✅ NF OK — sem divergências na conferência.", 2600);
-        // opcional: abre nada, só confirma
-        return;
+      if(divergencias.length > 0){
+        setMsg_("");
+        abrirModal(divergencias);
+      } else {
+        // ✅ pedido: quando não tiver divergência, mostrar msg
+        setMsg_("✅ NF OK — sem divergências.", true);
       }
-
-      abrirModal(divergencias);
     }
 
     function abrirModal(divergencias){
@@ -878,10 +754,7 @@
       atualizarKPIs();
       const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
       render(montarListaConferencia(jaConferido));
-
-      // ✅ força sync reconstruído do banco (ignora cache)
-      puxarSyncAgora_(true);
-
+      puxarSyncAgora_();
       alert("Zerado (servidor + tela).");
     }
 
@@ -893,8 +766,7 @@
         o.type = "square";
         o.frequency.value = 880;
         g.gain.value = 0.08;
-        o.connect(g);
-        g.connect(audioCtx.destination);
+        o.connect(g); g.connect(audioCtx.destination);
         o.start();
         setTimeout(()=>{ o.stop(); }, 110);
       }catch(e){}
@@ -927,8 +799,8 @@
       if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
       syncAtivo = true;
       ultimoSyncHash = "";
-      puxarSyncAgora_(true);
-      syncTimer = setInterval(() => { puxarSyncAgora_(false); }, 1100);
+      puxarSyncAgora_();
+      syncTimer = setInterval(() => { puxarSyncAgora_(); }, 1100);
     }
 
     function pararSync_(){
@@ -944,14 +816,13 @@
       return s;
     }
 
-    async function puxarSyncAgora_(force){
+    async function puxarSyncAgora_(){
       if(!syncAtivo || !cabecalhoAtual) return;
       const chave = String(cabecalhoAtual.chaveAcesso || "").trim();
       if(!chave || chave.length !== 44) return;
 
       try{
-        const url = `${URL_API}?api=sincronizarBipes&chave=${encodeURIComponent(chave)}&force=${force ? "1" : "0"}&t=${Date.now()}`;
-        const resp = await fetch(url);
+        const resp = await fetch(`${URL_API}?api=sincronizarBipes&chave=${encodeURIComponent(chave)}&t=${Date.now()}`);
         const data = await resp.json();
         if(!data || !data.success) throw new Error("sync fail");
 
@@ -970,6 +841,53 @@
       }catch(e){
         document.getElementById("kpi-sync").textContent = "OFF";
       }
+    }
+
+    // ✅ refresh do banco (itensNF) em tempo real
+    function iniciarNFRefresh_(){
+      pararNFRefresh_();
+      if(!cabecalhoAtual) return;
+      ultimoHashNF = "";
+      atualizarItensNFDoBanco_();
+      nfRefreshTimer = setInterval(()=>atualizarItensNFDoBanco_(), 12000);
+    }
+    function pararNFRefresh_(){
+      if(nfRefreshTimer){ clearInterval(nfRefreshTimer); nfRefreshTimer = null; }
+    }
+    function _hashItensNF_(arr){
+      const norm = (arr||[]).map(i => `${String(i.ean||"").trim()}|${Number(i.quantidade||0)}|${String(i.codigo||"")}|${String(i.cor||"")}|${String(i.tamanho||"")}`);
+      norm.sort();
+      return norm.join(";");
+    }
+    async function atualizarItensNFDoBanco_(){
+      try{
+        if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
+        const chave = String(cabecalhoAtual.chaveAcesso||"").trim();
+        const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${encodeURIComponent(filialAtual)}&chave=${encodeURIComponent(chave)}&t=${Date.now()}`);
+        const data = await resp.json();
+        if(!data || !data.success) return;
+
+        const novosItens = data.itens || [];
+        const hash = _hashItensNF_(novosItens);
+
+        if(hash && hash !== ultimoHashNF){
+          ultimoHashNF = hash;
+          itensNF = novosItens;
+
+          // atualiza cabeçalho se mudou algo
+          cabecalhoAtual = data.cabecalho || cabecalhoAtual;
+
+          document.getElementById("resumo-nf").innerHTML = `
+            <strong>NF:</strong> ${cabecalhoAtual.numeroNF} |
+            <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente} |
+            <strong>Data:</strong> ${cabecalhoAtual.dataEmissao}
+          `;
+
+          atualizarKPIs();
+          const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+          render(montarListaConferencia(jaConferido));
+        }
+      }catch(e){}
     }
 
     function registrarEANNoServidor_(ean){
@@ -993,9 +911,7 @@
         if(data && data.success){
           const naNota = itensNF.some(i => String(i.ean || "") === String(ean));
           if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
-
-          // ✅ força reconstrução do banco quando bipa (evita “ficar preso” em cache)
-          puxarSyncAgora_(true);
+          puxarSyncAgora_();
         }
       })
       .catch(()=>{});
@@ -1043,28 +959,27 @@
 
       modoScanner = modo;
 
-      scannerDiv.classList.remove("nf-mode", "ean-mode");
+      scannerDiv.classList.remove("nf-mode","ean-mode");
+      setMsg_("");
 
       if(modoScanner === "EAN" && !cabecalhoAtual){
         alert("Carregue a NF primeiro.");
         return;
       }
 
-      scannerDiv.style.cursor = modoScanner === "EAN" ? "pointer" : "default";
-
-      if (modoScanner === "EAN") {
+      if(modoScanner === "EAN"){
         scannerDiv.classList.add("ean-mode");
         scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
-        scannerDiv.style.display = "flex";
-        bloquearBody_(true);
-
         info.innerHTML = `
           Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>
           <span class="scanner-info-highlight">Sem travar</span> e com <span class="scanner-info-highlight">bipe instantâneo</span>.
         `;
+        scannerDiv.style.display = "flex";
+        bloquearBody_(true);
       } else {
         scannerDiv.classList.add("nf-mode");
-        scannerView.innerHTML = `<div class="muted" style="text-align:center;padding:10px">Iniciando câmera...</div>`;
+        scannerDiv.style.display = "flex";
+        bloquearBody_(true);
       }
 
       try{
@@ -1075,24 +990,7 @@
           return;
         }
 
-        // ✅ NF
-        await iniciarDynamsoftNF_PrepararSomente_();
-
-        scannerDiv.style.display = "flex";
-        bloquearBody_(true);
-
-        await iniciarDynamsoftNF_ShowNoContainer_(scannerView);
-
-        setTimeout(() => {
-          const modalLicenca = document.querySelector('.dce-modal, .dce-dialog');
-          const nossoBotao = document.querySelector('.scanner-close');
-
-          if (modalLicenca) {
-            if (nossoBotao) nossoBotao.style.zIndex = '2147483645';
-          } else if (nossoBotao) {
-            nossoBotao.style.zIndex = '2147483646';
-          }
-        }, 300);
+        await iniciarDynamsoftNF_(scannerView);
 
       }catch(ex){
         try{ await fecharLeitor(); }catch(e){}
@@ -1119,37 +1017,37 @@
       }catch(e){}
     }
 
-    async function iniciarDynamsoftNF_PrepararSomente_(){
-      try {
-        scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
-        await scannerInstance.updateRuntimeSettings("speed");
+    // ✅ Dynamsoft NF: configura formatos + leitura única + joga chave no input
+    async function iniciarDynamsoftNF_(scannerView){
+      scannerInstance = await Dynamsoft.DBR.BarcodeScanner.createInstance();
 
-        // ✅ NF geralmente é Code128 (barra 44 dígitos). Dynamsoft lê bem com speed.
-        scannerInstance.onFrameRead = results => {
-          if(!results || !results.length) return;
+      let settings = await scannerInstance.getRuntimeSettings();
+      settings.barcodeFormatIds = Dynamsoft.DBR.EnumBarcodeFormat.BF_ALL;
+      settings.barcodeFormatIds_2 = Dynamsoft.DBR.EnumBarcodeFormat.BF2_NULL;
+      settings.expectedBarcodesCount = 1;
+      await scannerInstance.updateRuntimeSettings(settings);
 
-          for (let result of results){
-            const code = (result.barcodeText || "").trim();
-            if(!code) continue;
-
-            const onlyNumbers = code.replace(/\D/g,'');
-            if(onlyNumbers.length >= 44){
-              const chave = onlyNumbers.substring(0,44);
-              document.getElementById("chave").value = chave;
-              beepOk();
-              fecharLeitor();
-              return;
-            }
+      const processarResultado = (results)=>{
+        if(!results || !results.length) return;
+        for(const r of results){
+          const code = String(r.barcodeText || "").trim();
+          if(!code) continue;
+          const onlyNumbers = code.replace(/\D/g,'');
+          if(onlyNumbers.length >= 44){
+            const chave = onlyNumbers.substring(0,44);
+            document.getElementById("chave").value = chave;
+            beepOk();
+            fecharLeitor();
+            return;
           }
-        };
-      } catch (err) {
-        console.error("Erro Dynamsoft:", err);
-        throw err;
-      }
-    }
+        }
+      };
 
-    async function iniciarDynamsoftNF_ShowNoContainer_(scannerView){
-      if(!scannerInstance) throw new Error("Scanner não inicializado.");
+      // Preferência: leitura “não duplicada”
+      scannerInstance.onUnduplicatedRead = (txt, results) => processarResultado(results);
+      // fallback: frame read
+      scannerInstance.onFrameRead = (results) => processarResultado(results);
+
       await scannerInstance.show(scannerView);
     }
 
@@ -1173,7 +1071,14 @@
 
           const ean13 = extrairEAN13DoTexto(decodedText);
           if (!ean13) return;
-          if (!eanPermitido_(ean13)) return;
+
+          if (!isValidEAN13(ean13)) return;
+
+          if (!eanPermitido_(ean13)){
+            // não trava: só ignora
+            return;
+          }
+
           if (!podeProcessarEAN_(ean13)) return;
 
           processando = true;
@@ -1205,11 +1110,9 @@
     }
 
     async function fecharLeitor() {
-      tentarFecharModalLicenca();
-
       try {
         if (html5Scanner) {
-          await html5Scanner.stop();
+          await html5Scanner.stop().catch(()=>{});
           html5Scanner = null;
         }
         if (scannerInstance) {
@@ -1224,22 +1127,15 @@
       const notificacoes = scannerDiv.querySelectorAll('.scanner-notification');
       notificacoes.forEach(n => n.remove());
 
-      scannerDiv.classList.remove("nf-mode", "ean-mode", "scanner-paused");
-
+      scannerDiv.classList.remove("nf-mode","ean-mode","scanner-paused");
       const scannerView = document.getElementById("scanner-view");
       scannerView.classList.remove("scanner-paused");
-
       const info = document.getElementById("scanner-info");
       info.classList.remove("scanner-info-paused");
 
       scannerDiv.style.display = "none";
       bloquearBody_(false);
       modoScanner = "";
-
-      setTimeout(() => {
-        const modals = document.querySelectorAll('.dce-modal, .dce-dialog, .dce-modal-backdrop');
-        modals.forEach(modal => { if (modal && modal.parentNode) modal.parentNode.removeChild(modal); });
-      }, 150);
     }
 
     function adicionarEANManual(){
@@ -1247,13 +1143,67 @@
 
       const inp = document.getElementById("ean-manual");
       const ean13 = extrairEAN13DoTexto(inp.value || "");
-      if (!ean13 || !eanPermitido_(ean13)) { inp.value = ""; inp.focus(); return; }
-      if (!podeProcessarEAN_(ean13)) { alert("Aguarde um momento antes de escanear novamente."); inp.value = ""; return; }
+
+      if (!ean13){
+        alert("EAN inválido (precisa ser EAN-13).");
+        inp.value = ""; inp.focus(); return;
+      }
+      if (!isValidEAN13(ean13)){
+        alert("EAN inválido (dígito verificador não confere).");
+        inp.value = ""; inp.focus(); return;
+      }
+      if (!eanPermitido_(ean13)){
+        alert("EAN fora do padrão permitido (prefixo diferente de 7900/7909).");
+        inp.value = ""; inp.focus(); return;
+      }
+      if (!podeProcessarEAN_(ean13)){
+        alert("Aguarde um momento antes de escanear novamente.");
+        inp.value = ""; return;
+      }
 
       beepOk();
       registrarEANNoServidor_(ean13);
       inp.value = "";
       inp.focus();
+    }
+
+    // ✅ ajuste manual: define TOTAL desejado por EAN (via delta no servidor)
+    async function ajusteManualPrompt(){
+      if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso){ alert("Carregue a NF primeiro."); return; }
+
+      const eanBruto = prompt("Digite/cole o EAN-13 para ajustar:");
+      if(!eanBruto) return;
+      const ean = extrairEAN13DoTexto(eanBruto);
+      if(!ean || !isValidEAN13(ean)) { alert("EAN inválido."); return; }
+
+      const atual = Number(mapaScan[ean] || 0);
+      const novoStr = prompt(`Total atual no scan: ${atual}\nQual TOTAL você quer deixar para esse EAN?`, String(atual));
+      if(novoStr === null) return;
+      const novoTotal = Number(String(novoStr).replace(",", "."));
+      if(!Number.isFinite(novoTotal) || novoTotal < 0){ alert("Valor inválido."); return; }
+
+      setMsg_("Ajustando no servidor...");
+      try{
+        const resp = await fetch(URL_API, {
+          method:"POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            api:"ajustarBipeEAN",
+            chaveAcesso: String(cabecalhoAtual.chaveAcesso).trim(),
+            ean,
+            novoTotal,
+            conferente: conferenteAtual || "Usuário"
+          })
+        });
+        const data = await resp.json();
+        if(!data.success) throw new Error(data.message || "Falha ao ajustar.");
+
+        setMsg_("✅ Ajuste aplicado. Sincronizando...", true);
+        puxarSyncAgora_();
+      }catch(e){
+        alert("Erro no ajuste manual: " + (e.message || e));
+        setMsg_("");
+      }
     }
 
     async function enviarConferencia(){
@@ -1311,6 +1261,7 @@
 
     function limparTela(){
       pararSync_();
+      pararNFRefresh_();
       cabecalhoAtual = null;
       mapaScan = {};
       itensNF = [];
@@ -1327,12 +1278,11 @@
       document.getElementById("resumo-div").textContent = "";
       document.getElementById("lista").innerHTML = "";
 
+      setMsg_("");
       document.getElementById("chave").focus();
     }
 
     window.addEventListener("load", ()=>{
-      limparStoragesAntigosDeScan_();
-
       const f = localStorage.getItem("filial_conf_nf");
       const nome = localStorage.getItem("conferente_conf_nf");
 
