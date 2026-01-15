@@ -426,7 +426,6 @@
 
     // ✅ CONTROLE REFORÇADO SCANNER EAN
     let scannerTravado = false;
-    let timeoutResume = null;
     let ultimoEan = "";
     let ultimoEanTs = 0;
 
@@ -682,8 +681,7 @@
       try{
         await postJSON_({
           api:"zerarSyncNF",
-          chaveAcesso: String(cabecalhoAtual.chaveAcesso || "").trim(),
-          senha: prompt("Senha para zerar:") || ""
+          chaveAcesso: String(cabecalhoAtual.chaveAcesso || "").trim()
         });
       }catch(e){}
 
@@ -868,10 +866,6 @@
 
       // ✅ RESETA TODOS OS CONTROLES
       scannerTravado = false;
-      if(timeoutResume) {
-        clearTimeout(timeoutResume);
-        timeoutResume = null;
-      }
       ultimoEan = "";
       ultimoEanTs = 0;
 
@@ -940,7 +934,7 @@
             margin-top:10px; font-size:13px; color:#cbd5e1;
             background:rgba(31,41,55,.55);
             border:1px solid #374151;
-            padding:10px 12px; border-radius:12px;
+            padding:10px 12px;border-radius:12px;
           ">
             Aponte para o <b>código de barras</b> da NF. Ao ler, preenche a chave e fecha automaticamente.
           </div>
@@ -1005,16 +999,13 @@
       html5ScannerEAN = new Html5Qrcode("html5-ean");
 
       const config = {
-        fps: 10, // Reduzido de 14 para 10
+        fps: 8, // ✅ REDUZIDO PARA 8 FPS - MENOS FALSOS POSITIVOS
         qrbox: { width: 280, height: 280 },
         experimentalFeatures: { 
           useBarCodeDetectorIfSupported: true 
         },
         rememberLastUsedCamera: true
       };
-
-      // ✅ CONTROLE REFORÇADO CONTRA BIPES FANTASMAS
-      let timeoutResume = null;
 
       await html5ScannerEAN.start(
         { facingMode: "environment" },
@@ -1028,30 +1019,30 @@
           
           // ✅ Filtro de qualidade: texto muito curto provavelmente é falso
           const textoLimpo = String(decodedText || "").trim();
-          if(textoLimpo.length < 8) {
+          if(textoLimpo.length < 10) {
             // Texto muito curto, não é EAN válido
-            setTimeout(() => { scannerTravado = false; }, 100);
+            setTimeout(() => { scannerTravado = false; }, 50);
             return;
           }
           
           const ean13 = extrairEAN13DoTexto(textoLimpo);
           if(!ean13) {
             // Não encontrou EAN válido
-            setTimeout(() => { scannerTravado = false; }, 100);
+            setTimeout(() => { scannerTravado = false; }, 50);
             return;
           }
 
           // ✅ VERIFICAÇÃO DUPLA: EAN deve ter 13 dígitos e passar validação
           if(ean13.length !== 13 || !isValidEAN13(ean13)) {
-            setTimeout(() => { scannerTravado = false; }, 100);
+            setTimeout(() => { scannerTravado = false; }, 50);
             return;
           }
 
-          // ✅ Anti-bipe duplo por timestamp
+          // ✅ Anti-bipe duplo por timestamp - AGORA 2 SEGUNDOS
           const agora = Date.now();
-          if(ean13 === ultimoEan && (agora - ultimoEanTs) < 1500) {
-            // Mesmo EAN em menos de 1.5 segundos - provavelmente duplo
-            setTimeout(() => { scannerTravado = false; }, 100);
+          if(ean13 === ultimoEan && (agora - ultimoEanTs) < 2000) {
+            // Mesmo EAN em menos de 2 segundos - provavelmente duplo
+            setTimeout(() => { scannerTravado = false; }, 50);
             return;
           }
 
@@ -1061,7 +1052,7 @@
 
           // ✅ PAUSA IMEDIATA DO SCANNER
           try{ 
-            html5ScannerEAN.pause(true); // true = pausa preservando a câmera
+            await html5ScannerEAN.pause(true); // true = pausa preservando a câmera
           }catch(e){}
 
           try{
@@ -1078,24 +1069,10 @@
               Toque em <span class="scanner-info-highlight">QUALQUER LUGAR</span> da tela para continuar.
             `;
 
-            // ✅ Limpa timeout anterior se existir
-            if(timeoutResume) clearTimeout(timeoutResume);
-            
-            // ✅ Timeout de segurança: libera após 5 segundos se usuário não tocar
-            timeoutResume = setTimeout(() => {
-              if(scannerTravado) {
-                scannerTravado = false;
-                try{ html5ScannerEAN.resume(); }catch(e){}
-                scannerView.classList.remove("scanner-paused");
-                info.classList.remove("scanner-info-paused");
-                info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, pausa automaticamente.`;
-              }
-            }, 5000);
-
           }catch(e){
             console.error("Erro ao registrar bipe:", e);
-            // Se falhar, libera após 500ms
-            setTimeout(() => { scannerTravado = false; }, 500);
+            // Se falhar, libera após 200ms
+            setTimeout(() => { scannerTravado = false; }, 200);
           }
         },
         (errorMsg) => {
@@ -1161,12 +1138,6 @@
         // ✅ Libera o scanner travado
         scannerTravado = false;
         
-        // ✅ Limpa timeout de segurança
-        if(timeoutResume) {
-          clearTimeout(timeoutResume);
-          timeoutResume = null;
-        }
-        
         // ✅ Resume o scanner
         if(html5ScannerEAN){
           await html5ScannerEAN.resume();
@@ -1208,12 +1179,6 @@
     }
 
     async function fecharLeitor(){
-      // ✅ Limpa timeout se existir
-      if(timeoutResume) {
-        clearTimeout(timeoutResume);
-        timeoutResume = null;
-      }
-      
       scannerTravado = false;
       ultimoEan = "";
       ultimoEanTs = 0;
