@@ -424,15 +424,16 @@
 
     let cacheInfoEAN = {};
 
+    // ✅ CONTROLE REFORÇADO SCANNER EAN
+    let scannerTravado = false;
+    let timeoutResume = null;
+    let ultimoEan = "";
+    let ultimoEanTs = 0;
+
     // Sync
     let syncTimer = null;
     let syncAtivo = false;
     let ultimoSyncHash = "";
-
-    // ✅ anti bip duplo reforçado
-    let eanTravado = false;
-    let ultimoEan = "";
-    let ultimoEanTs = 0;
 
     async function postJSON_(payload){
       const resp = await fetch(URL_API, {
@@ -748,24 +749,54 @@
     }
 
     function isValidEAN13(ean){
+      if(!ean || typeof ean !== 'string') return false;
+      
+      // Verifica se tem exatamente 13 dígitos
       if(!/^\d{13}$/.test(ean)) return false;
+      
+      // Evita EANs "genéricos" ou inválidos
+      const primeirosDigitos = ean.substring(0, 3);
+      const ultimosDigitos = ean.substring(7);
+      
+      // Filtra códigos suspeitos (muitos zeros, padrões repetidos)
+      if(ean === '0000000000000') return false;
+      if(/^(\d)\1{12}$/.test(ean)) return false; // Todos dígitos iguais
+      if(primeirosDigitos === '000' && ultimosDigitos === '0000000') return false;
+      
+      // Cálculo do dígito verificador
       const digits = ean.split('').map(n => parseInt(n,10));
       const check = digits[12];
       let sum = 0;
-      for(let i=0;i<12;i++){
+      for(let i=0; i<12; i++){
         sum += digits[i] * (i%2===0 ? 1 : 3);
       }
       const calc = (10 - (sum % 10)) % 10;
+      
       return calc === check;
     }
 
     function extrairEAN13DoTexto(texto){
-      const only = String(texto||"").replace(/\D/g,"");
+      if(!texto || typeof texto !== 'string') return "";
+      
+      // Remove todos os não-dígitos
+      const only = texto.replace(/\D/g,"");
+      
+      // Mínimo 13 caracteres
       if(only.length < 13) return "";
+      
+      // Procura sequência de 13 dígitos que seja um EAN válido
       for(let i=0; i<=only.length-13; i++){
         const cand = only.substring(i, i+13);
-        if(isValidEAN13(cand)) return cand;
+        
+        // Filtro rápido: não pode ser tudo zeros ou padrão repetido
+        if(cand === '0000000000000') continue;
+        if(/^(\d)\1{12}$/.test(cand)) continue;
+        
+        if(isValidEAN13(cand)) {
+          return cand;
+        }
       }
+      
       return "";
     }
 
@@ -835,18 +866,20 @@
       modoScanner = modo;
       scannerDiv.style.display = "flex";
 
+      // ✅ RESETA TODOS OS CONTROLES
+      scannerTravado = false;
+      if(timeoutResume) {
+        clearTimeout(timeoutResume);
+        timeoutResume = null;
+      }
+      ultimoEan = "";
+      ultimoEanTs = 0;
+
       const notif = scannerDiv.querySelector(".scanner-notification");
       if(notif) notif.remove();
 
       scannerView.classList.remove("scanner-paused");
       info.classList.remove("scanner-info-paused");
-
-      // ✅ reset trava EAN
-      if(modoScanner === "EAN"){
-        eanTravado = false;
-        ultimoEan = "";
-        ultimoEanTs = 0;
-      }
 
       if(modoScanner === "EAN" && !cabecalhoAtual){
         alert("Carregue a NF primeiro.");
@@ -967,40 +1000,69 @@
       setTimeout(()=>{ if(el.parentNode) el.remove(); }, 2600);
     }
 
-    // ✅ AQUI está o reforço do anti bip duplo (SEM mudar visual)
     async function iniciarHtml5EAN_Bonito_(scannerView, info){
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(720px, 92vw); border-radius:12px; overflow:hidden;"></div>`;
       html5ScannerEAN = new Html5Qrcode("html5-ean");
 
       const config = {
-        fps: 14,
+        fps: 10, // Reduzido de 14 para 10
         qrbox: { width: 280, height: 280 },
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+        experimentalFeatures: { 
+          useBarCodeDetectorIfSupported: true 
+        },
+        rememberLastUsedCamera: true
       };
+
+      // ✅ CONTROLE REFORÇADO CONTRA BIPES FANTASMAS
+      let timeoutResume = null;
 
       await html5ScannerEAN.start(
         { facingMode: "environment" },
         config,
         async (decodedText) => {
           if(modoScanner !== "EAN") return;
+          
+          // ✅ TRAVA IMEDIATA - EVITA PROCESSAMENTO PARALELO
+          if(scannerTravado) return;
+          scannerTravado = true;
+          
+          // ✅ Filtro de qualidade: texto muito curto provavelmente é falso
+          const textoLimpo = String(decodedText || "").trim();
+          if(textoLimpo.length < 8) {
+            // Texto muito curto, não é EAN válido
+            setTimeout(() => { scannerTravado = false; }, 100);
+            return;
+          }
+          
+          const ean13 = extrairEAN13DoTexto(textoLimpo);
+          if(!ean13) {
+            // Não encontrou EAN válido
+            setTimeout(() => { scannerTravado = false; }, 100);
+            return;
+          }
 
-          const ean13 = extrairEAN13DoTexto(decodedText);
-          if(!ean13) return;
+          // ✅ VERIFICAÇÃO DUPLA: EAN deve ter 13 dígitos e passar validação
+          if(ean13.length !== 13 || !isValidEAN13(ean13)) {
+            setTimeout(() => { scannerTravado = false; }, 100);
+            return;
+          }
 
-          // ✅ trava IMEDIATA (antes de qualquer await)
-          if(eanTravado) return;
-
+          // ✅ Anti-bipe duplo por timestamp
           const agora = Date.now();
+          if(ean13 === ultimoEan && (agora - ultimoEanTs) < 1500) {
+            // Mesmo EAN em menos de 1.5 segundos - provavelmente duplo
+            setTimeout(() => { scannerTravado = false; }, 100);
+            return;
+          }
 
-          // ✅ filtro extra: mesmo EAN em janela curta (caso detector dispare duplo)
-          if(ean13 === ultimoEan && (agora - ultimoEanTs) < 900) return;
-
-          eanTravado = true;
+          // ✅ Atualiza controle de tempo
           ultimoEan = ean13;
           ultimoEanTs = agora;
 
-          // ✅ pausa imediatamente
-          try{ html5ScannerEAN.pause(); }catch(e){}
+          // ✅ PAUSA IMEDIATA DO SCANNER
+          try{ 
+            html5ScannerEAN.pause(true); // true = pausa preservando a câmera
+          }catch(e){}
 
           try{
             await registrarBipeServidor_(ean13);
@@ -1008,17 +1070,37 @@
             beepOk();
             _mostrarNotificacaoEAN_(ean13);
 
+            // ✅ Atualiza UI para mostrar pausado
             scannerView.classList.add("scanner-paused");
             info.classList.add("scanner-info-paused");
             info.innerHTML = `
-              Scanner <span class="scanner-info-highlight">pausado</span> para evitar bip duplo.<br/>
-              Toque na tela para <span class="scanner-info-highlight">continuar</span>.
+              ✅ <strong>EAN ${ean13}</strong> registrado!<br/>
+              Toque em <span class="scanner-info-highlight">QUALQUER LUGAR</span> da tela para continuar.
             `;
+
+            // ✅ Limpa timeout anterior se existir
+            if(timeoutResume) clearTimeout(timeoutResume);
+            
+            // ✅ Timeout de segurança: libera após 5 segundos se usuário não tocar
+            timeoutResume = setTimeout(() => {
+              if(scannerTravado) {
+                scannerTravado = false;
+                try{ html5ScannerEAN.resume(); }catch(e){}
+                scannerView.classList.remove("scanner-paused");
+                info.classList.remove("scanner-info-paused");
+                info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, pausa automaticamente.`;
+              }
+            }, 5000);
+
           }catch(e){
-            // se falhar, libera para tentar de novo com toque
+            console.error("Erro ao registrar bipe:", e);
+            // Se falhar, libera após 500ms
+            setTimeout(() => { scannerTravado = false; }, 500);
           }
         },
-        ()=>{}
+        (errorMsg) => {
+          // Callback de erro - ignorar erros normais
+        }
       );
     }
 
@@ -1063,25 +1145,53 @@
       }
     }
 
-    // ✅ tocar na tela para retomar (libera 1 por 1)
+    // ✅ Evento de toque para retomar scanner (DEVE SER O PRIMEIRO A PROCESSAR)
     document.addEventListener("click", async (e)=>{
       const scannerDiv = document.getElementById("scanner");
       if(scannerDiv.style.display !== "flex") return;
       if(modoScanner !== "EAN") return;
+      
+      // Não processa se clicar no botão de fechar
       if(e.target.closest(".scanner-close")) return;
-
+      
+      e.stopPropagation();
+      e.preventDefault();
+      
       try{
+        // ✅ Libera o scanner travado
+        scannerTravado = false;
+        
+        // ✅ Limpa timeout de segurança
+        if(timeoutResume) {
+          clearTimeout(timeoutResume);
+          timeoutResume = null;
+        }
+        
+        // ✅ Resume o scanner
         if(html5ScannerEAN){
-          html5ScannerEAN.resume();
-          eanTravado = false; // ✅ só libera aqui
+          await html5ScannerEAN.resume();
+          
           const scannerView = document.getElementById("scanner-view");
           const info = document.getElementById("scanner-info");
+          
           scannerView.classList.remove("scanner-paused");
           info.classList.remove("scanner-info-paused");
-          info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, pausa e você toca para continuar.`;
+          info.innerHTML = `
+            ✅ <span class="scanner-info-highlight">Scanner liberado!</span><br/>
+            Aponte para o próximo EAN-13.
+          `;
+          
+          // ✅ Pequeno delay antes de voltar ao texto normal
+          setTimeout(() => {
+            if(modoScanner === "EAN" && scannerDiv.style.display === "flex") {
+              info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, pausa automaticamente.`;
+            }
+          }, 1500);
         }
-      }catch(err){}
-    }, true);
+      }catch(err){
+        console.error("Erro ao retomar scanner:", err);
+      }
+    }, true); // Use capture phase para pegar primeiro
 
     async function adicionarEANManual(){
       if(!cabecalhoAtual){ alert("Carregue a NF primeiro."); return; }
@@ -1098,6 +1208,16 @@
     }
 
     async function fecharLeitor(){
+      // ✅ Limpa timeout se existir
+      if(timeoutResume) {
+        clearTimeout(timeoutResume);
+        timeoutResume = null;
+      }
+      
+      scannerTravado = false;
+      ultimoEan = "";
+      ultimoEanTs = 0;
+      
       await pararScannerAtual_();
       const scannerDiv = document.getElementById("scanner");
       scannerDiv.style.display = "none";
