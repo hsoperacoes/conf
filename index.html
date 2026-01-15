@@ -166,6 +166,8 @@
       border:1px solid #374151;
       border-radius:14px;
       box-shadow:0 10px 30px rgba(0,0,0,.25);
+      cursor: pointer;
+      user-select: none;
     }
     .scanner-info-highlight{
       color:#bbf7d0;
@@ -332,6 +334,12 @@
                 <button class="btn-ok" onclick="abrirLeitor('EAN')">
                   <i class="fas fa-barcode"></i> Escanear EAN (Peças)
                 </button>
+
+                <!-- ✅ Botão de LOG (novo) -->
+                <button class="btn-secundario" onclick="toggleLogPanel_(true)">
+                  <i class="fas fa-bug"></i> Ver Log
+                </button>
+
                 <button class="btn-secundario" onclick="limparScans()">
                   <i class="fas fa-eraser"></i> Zerar Scans
                 </button>
@@ -401,6 +409,37 @@
     &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.2
   </footer>
 
+  <!-- ✅ Painel de LOG (novo) -->
+  <div id="log-panel" style="
+    position:fixed; inset:0; z-index:3000; display:none;
+    background:rgba(0,0,0,.85); align-items:center; justify-content:center; padding:16px;
+  ">
+    <div style="
+      width:min(900px, 95vw); background:#111; border:1px solid #333; border-radius:14px;
+      padding:14px; box-shadow:0 18px 60px rgba(0,0,0,.6);
+    ">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px">
+        <div style="font-weight:900; color:#e5e7eb">
+          LOG Scanner (últimos eventos)
+          <span style="color:#9ca3af; font-weight:700; font-size:12px">
+            | blockedHits: <span id="log-bh">0</span> | inFlightHits: <span id="log-ih">0</span>
+          </span>
+        </div>
+        <div style="display:flex; gap:8px">
+          <button onclick="copyLogs_()" style="padding:8px 10px;border-radius:10px;border:1px solid #444;background:#222;color:#fff;cursor:pointer">Copiar</button>
+          <button onclick="exportLogsTxt_()" style="padding:8px 10px;border-radius:10px;border:1px solid #444;background:#222;color:#fff;cursor:pointer">Baixar .txt</button>
+          <button onclick="toggleLogPanel_(false)" style="padding:8px 10px;border-radius:10px;border:1px solid #444;background:#7f1d1d;color:#fff;cursor:pointer">Fechar</button>
+        </div>
+      </div>
+
+      <textarea id="log-box" style="
+        width:100%; height:60vh; resize:none; border-radius:12px; border:1px solid #333;
+        background:#0b0b0c; color:#e5e7eb; padding:10px; font-family:monospace; font-size:12px;
+        outline:none;
+      " readonly></textarea>
+    </div>
+  </div>
+
   <script>
     const APP_VERSION = "2.2";
 
@@ -426,17 +465,79 @@
     let cacheInfoEAN = {};
 
     // ✅ CONTROLE REFORÇADO SCANNER EAN - AGORA COM FLAG DE BLOQUEIO
-    let scannerBloqueado = false; // ✅ bloqueia totalmente novos scans
+    let scannerBloqueado = false; // bloqueia novos scans
     let ultimoEanLido = "";
     let ultimoEanTimestamp = 0;
 
-    // ✅ NOVO: blindagem total do som (se travado, NÃO toca beep)
-    let somPermitido = true;
+    // ✅ NOVO: marca se tem request pro servidor em andamento
+    let inFlightEAN = false;
 
     // Sync
     let syncTimer = null;
     let syncAtivo = false;
     let ultimoSyncHash = "";
+
+    /***********************
+     * ✅ LOGGER (debug scanner)
+     ***********************/
+    const LOG_MAX = 1200;
+    let LOGS = [];
+    let LOG_BLOCKED_HITS = 0;
+    let LOG_INFLIGHT_HITS = 0;
+
+    function logEvent_(type, data = {}){
+      const t = new Date();
+      const line = {
+        ts: t.toISOString(),
+        ms: (performance.now ? performance.now().toFixed(1) : ""),
+        type,
+        ...data
+      };
+      LOGS.push(line);
+      if(LOGS.length > LOG_MAX) LOGS.shift();
+      renderLogBox_();
+    }
+
+    function renderLogBox_(){
+      const box = document.getElementById("log-box");
+      if(!box) return;
+      const last = LOGS.slice(-60);
+      box.value = last.map(l => {
+        const a = [];
+        a.push(`[${l.ms}ms] ${l.type}`);
+        if(l.ean) a.push(`EAN=${l.ean}`);
+        if(l.blocked !== undefined) a.push(`blocked=${l.blocked}`);
+        if(l.inFlight !== undefined) a.push(`inFlight=${l.inFlight}`);
+        if(l.dt !== undefined) a.push(`dt=${l.dt}ms`);
+        if(l.msg) a.push(`msg=${l.msg}`);
+        if(l.dec) a.push(`dec="${l.dec}"`);
+        return a.join(" | ");
+      }).join("\n");
+    }
+
+    function exportLogsTxt_(){
+      const full = LOGS.map(l => JSON.stringify(l)).join("\n");
+      const blob = new Blob([full], {type:"text/plain"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `log_scanner_${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    }
+
+    function copyLogs_(){
+      const full = LOGS.map(l => JSON.stringify(l)).join("\n");
+      navigator.clipboard?.writeText(full);
+      alert("Log copiado!");
+    }
+
+    function toggleLogPanel_(show){
+      const p = document.getElementById("log-panel");
+      if(!p) return;
+      p.style.display = show ? "flex" : "none";
+      renderLogBox_();
+    }
 
     async function postJSON_(payload){
       const resp = await fetch(URL_API, {
@@ -732,9 +833,6 @@
     }
 
     function beepOk(){
-      // ✅ BLINDAGEM TOTAL: se somPermitido = false, NÃO toca nada (mata “fantasma”)
-      if(!somPermitido) return;
-
       try{
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const o = audioCtx.createOscillator();
@@ -753,13 +851,8 @@
     function isValidEAN13(ean){
       if(!ean || typeof ean !== 'string') return false;
       if(!/^\d{13}$/.test(ean)) return false;
-
-      const primeirosDigitos = ean.substring(0, 3);
-      const ultimosDigitos = ean.substring(7);
-
       if(ean === '0000000000000') return false;
       if(/^(\d)\1{12}$/.test(ean)) return false;
-      if(primeirosDigitos === '000' && ultimosDigitos === '0000000') return false;
 
       const digits = ean.split('').map(n => parseInt(n,10));
       const check = digits[12];
@@ -773,18 +866,13 @@
 
     function extrairEAN13DoTexto(texto){
       if(!texto || typeof texto !== 'string') return "";
-
       const only = texto.replace(/\D/g,"");
       if(only.length < 13) return "";
-
       for(let i=0; i<=only.length-13; i++){
         const cand = only.substring(i, i+13);
         if(cand === '0000000000000') continue;
         if(/^(\d)\1{12}$/.test(cand)) continue;
-
-        if(isValidEAN13(cand)) {
-          return cand;
-        }
+        if(isValidEAN13(cand)) return cand;
       }
       return "";
     }
@@ -847,22 +935,6 @@
       }
     }
 
-    // ✅ NOVO: pausa/retoma REAL do decoder EAN (mata “bipe fantasma”)
-    async function pausarDecoderEAN_(){
-      try{
-        if(html5ScannerEAN && typeof html5ScannerEAN.pause === "function"){
-          try{ html5ScannerEAN.pause(true); }catch(e){ html5ScannerEAN.pause(); }
-        }
-      }catch(e){}
-    }
-    async function retomarDecoderEAN_(){
-      try{
-        if(html5ScannerEAN && typeof html5ScannerEAN.resume === "function"){
-          html5ScannerEAN.resume();
-        }
-      }catch(e){}
-    }
-
     async function abrirLeitor(modo){
       const scannerDiv = document.getElementById("scanner");
       const scannerView = document.getElementById("scanner-view");
@@ -871,13 +943,13 @@
       modoScanner = modo;
       scannerDiv.style.display = "flex";
 
-      // ✅ RESETA TODOS OS CONTROLES
+      // reset controles
       scannerBloqueado = false;
+      inFlightEAN = false;
       ultimoEanLido = "";
       ultimoEanTimestamp = 0;
 
-      // ✅ Som liberado ao abrir (só fica mudo quando TRAVAR)
-      somPermitido = true;
+      logEvent_("OPEN_SCANNER", { msg: "modo="+modo });
 
       const notif = scannerDiv.querySelector(".scanner-notification");
       if(notif) notif.remove();
@@ -895,7 +967,7 @@
 
       info.innerHTML = (modoScanner === "NF")
         ? `Aponte para o código de barras da NF (chave <span class="scanner-info-highlight">44 dígitos</span>).<br/>Ao ler, <span class="scanner-info-highlight">fecha automaticamente</span>.`
-        : `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">pausa</span>. Toque na mensagem para liberar.`;
+        : `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">TRAVA</span>. Toque na mensagem abaixo para liberar o próximo.`;
 
       try{
         await pararScannerAtual_();
@@ -974,8 +1046,6 @@
 
           travadoNF = true;
           document.getElementById("chave").value = chave;
-
-          // ✅ beep NF continua normal
           beepOk();
 
           await new Promise(r => setTimeout(r, 120));
@@ -987,7 +1057,6 @@
 
     function _mostrarNotificacaoEAN_(ean13){
       const scannerDiv = document.getElementById("scanner");
-
       const old = scannerDiv.querySelector(".scanner-notification");
       if(old) old.remove();
 
@@ -997,7 +1066,7 @@
         <i class="fas fa-check-circle"></i>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
           <div class="title">CÓDIGO CAPTURADO!</div>
-          <div class="sub">Toque na mensagem para liberar o próximo</div>
+          <div class="sub">Toque na mensagem abaixo para liberar o próximo</div>
           <div class="ean">${ean13}</div>
         </div>
       `;
@@ -1013,9 +1082,7 @@
       const config = {
         fps: 8,
         qrbox: { width: 280, height: 280 },
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        },
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         rememberLastUsedCamera: true
       };
 
@@ -1025,59 +1092,103 @@
         async (decodedText) => {
           if(modoScanner !== "EAN") return;
 
-          // ✅ BLOQUEIO TOTAL: travado = silêncio + NÃO decodifica (porque pausamos)
-          if(scannerBloqueado) return;
+          // ✅ LOG entrada do callback (cada “bipe fantasma” vai aparecer aqui)
+          logEvent_("CB_ENTER", {
+            blocked: scannerBloqueado,
+            inFlight: inFlightEAN,
+            dec: String(decodedText || "").trim().slice(0, 40)
+          });
+
+          // ✅ Se travado, não faz NADA (mas vamos contar/registrar)
+          if(scannerBloqueado){
+            LOG_BLOCKED_HITS++;
+            const bh = document.getElementById("log-bh"); if(bh) bh.textContent = String(LOG_BLOCKED_HITS);
+            logEvent_("DROP_BLOCKED", { blocked:true });
+            return;
+          }
+
+          // ✅ Se já tem request em andamento, também não processa
+          if(inFlightEAN){
+            LOG_INFLIGHT_HITS++;
+            const ih = document.getElementById("log-ih"); if(ih) ih.textContent = String(LOG_INFLIGHT_HITS);
+            logEvent_("DROP_INFLIGHT", { inFlight:true });
+            return;
+          }
 
           const textoLimpo = String(decodedText || "").trim();
-          if(textoLimpo.length < 10) return;
+          if(textoLimpo.length < 10){
+            logEvent_("DROP_SHORT", { msg:"texto curto", dec: textoLimpo.slice(0, 20) });
+            return;
+          }
 
           const ean13 = extrairEAN13DoTexto(textoLimpo);
-          if(!ean13) return;
+          if(!ean13){
+            logEvent_("DROP_NOEAN", { msg:"não extraiu EAN", dec: textoLimpo.slice(0, 35) });
+            return;
+          }
 
-          if(ean13.length !== 13 || !isValidEAN13(ean13)) return;
+          if(ean13.length !== 13 || !isValidEAN13(ean13)){
+            logEvent_("DROP_INV", { ean: ean13 });
+            return;
+          }
 
-          // ✅ anti duplo imediato do mesmo EAN em curto intervalo
-          const agora = Date.now();
-          if(ean13 === ultimoEanLido && (agora - ultimoEanTimestamp) < 3000) return;
-
-          // ✅ trava imediatamente
+          // ✅ trava IMEDIATA antes de qualquer await
           scannerBloqueado = true;
+          inFlightEAN = true;
+          logEvent_("LOCKED", { ean: ean13, blocked:true, inFlight:true });
 
-          // ✅ MUTE TOTAL enquanto travado
-          somPermitido = false;
+          // ✅ tenta pausar o decoder (pra ver se sua versão suporta)
+          try{
+            if(html5ScannerEAN && typeof html5ScannerEAN.pause === "function"){
+              try{ html5ScannerEAN.pause(true); }catch(e){ html5ScannerEAN.pause(); }
+              logEvent_("PAUSE_OK", { ean: ean13 });
+            }else{
+              logEvent_("PAUSE_NOFUNC", { msg:"pause() não existe nessa versão" });
+            }
+          }catch(e){
+            logEvent_("PAUSE_ERR", { msg: String(e.message||e) });
+          }
 
-          // ✅ pausa REAL do decoder (mata "bipe fantasma" de vez)
-          await pausarDecoderEAN_();
+          // UI travada
+          const scannerViewEl = document.getElementById("scanner-view");
+          const infoEl = document.getElementById("scanner-info");
 
-          ultimoEanLido = ean13;
-          ultimoEanTimestamp = agora;
+          scannerViewEl.classList.add("scanner-paused");
+          infoEl.classList.add("scanner-info-paused");
+          infoEl.innerHTML = `
+            ✅ <strong>EAN ${ean13}</strong> detectado.<br/>
+            Scanner travado. Toque <span class="scanner-info-highlight">AQUI</span> para liberar o próximo.
+          `;
+
+          // ✅ mede tempo do servidor
+          const t0 = performance.now();
+          logEvent_("REQ_START", { ean: ean13 });
 
           try{
             await registrarBipeServidor_(ean13);
-
-            // ⚠️ aqui NÃO vai tocar beep porque somPermitido está false (do jeito que você pediu)
-            // beepOk();
-
-            _mostrarNotificacaoEAN_(ean13);
-
-            scannerView.classList.add("scanner-paused");
-            info.classList.add("scanner-info-paused");
-            info.innerHTML = `
-              ✅ <strong>EAN ${ean13}</strong> registrado!<br/>
-              Toque em <span class="scanner-info-highlight">NA MENSAGEM</span> para liberar o próximo.
-            `;
+            const dt = Math.round(performance.now() - t0);
+            logEvent_("REQ_OK", { ean: ean13, dt });
           }catch(e){
-            // se falhar, libera (e retoma)
-            scannerBloqueado = false;
-            somPermitido = true;
-            await retomarDecoderEAN_();
-
-            scannerView.classList.remove("scanner-paused");
-            info.classList.remove("scanner-info-paused");
+            const dt = Math.round(performance.now() - t0);
+            logEvent_("REQ_FAIL", { ean: ean13, dt, msg: String(e.message||e) });
+          }finally{
+            inFlightEAN = false;
+            logEvent_("REQ_END", { ean: ean13, inFlight:false });
           }
+
+          // Notificação visual (mantida)
+          _mostrarNotificacaoEAN_(ean13);
+
+          // beep só informativo (mantido como estava)
+          beepOk();
+
+          // fica travado até toque no scanner-info
         },
         (errorMsg) => {
-          // ignorar
+          // log leve (pra não floodar)
+          // Alguns browsers mandam muitos NotFoundException; então log só de vez em quando
+          // Se quiser, pode ligar este log, mas vai encher:
+          // logEvent_("CB_ERR", { msg: String(errorMsg||"") });
         }
       );
     }
@@ -1123,38 +1234,57 @@
       }
     }
 
-    // ✅ LIBERAÇÃO: AGORA SÓ CLICANDO NA MENSAGEM (scanner-info)
-    async function liberarScannerEANPorToque_(){
-      const scannerDiv = document.getElementById("scanner");
-      if(scannerDiv.style.display !== "flex") return;
-      if(modoScanner !== "EAN") return;
-      if(!scannerBloqueado) return;
-
-      // libera
-      scannerBloqueado = false;
-
-      // volta som
-      somPermitido = true;
-
-      // retoma decoder
-      await retomarDecoderEAN_();
-
-      const scannerView = document.getElementById("scanner-view");
+    // ✅ Liberação só ao tocar NO scanner-info (para evitar toque fantasma em qualquer lugar)
+    window.addEventListener("load", ()=>{
       const info = document.getElementById("scanner-info");
+      if(info){
+        info.addEventListener("click", async (e)=>{
+          const scannerDiv = document.getElementById("scanner");
+          if(scannerDiv.style.display !== "flex") return;
+          if(modoScanner !== "EAN") return;
+          if(e.target.closest(".scanner-close")) return;
 
-      scannerView.classList.remove("scanner-paused");
-      info.classList.remove("scanner-info-paused");
-      info.innerHTML = `
-        ✅ <span class="scanner-info-highlight">Scanner liberado!</span><br/>
-        Aponte para o próximo EAN-13.
-      `;
+          if(!scannerBloqueado){
+            logEvent_("UNLOCK_IGNORED", { msg:"não estava bloqueado" });
+            return;
+          }
 
-      setTimeout(() => {
-        if(modoScanner === "EAN" && scannerDiv.style.display === "flex") {
-          info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">pausa</span>. Toque na mensagem para liberar.`;
-        }
-      }, 1500);
-    }
+          e.stopPropagation();
+          e.preventDefault();
+
+          logEvent_("UNLOCK_TAP", { blocked: scannerBloqueado });
+
+          scannerBloqueado = false;
+
+          // tenta retomar o decoder
+          try{
+            if(html5ScannerEAN && typeof html5ScannerEAN.resume === "function"){
+              html5ScannerEAN.resume();
+              logEvent_("RESUME_OK");
+            }else{
+              logEvent_("RESUME_NOFUNC", { msg:"resume() não existe nessa versão" });
+            }
+          }catch(ex){
+            logEvent_("RESUME_ERR", { msg: String(ex.message||ex) });
+          }
+
+          const scannerViewEl = document.getElementById("scanner-view");
+          const infoEl = document.getElementById("scanner-info");
+
+          scannerViewEl.classList.remove("scanner-paused");
+          infoEl.classList.remove("scanner-info-paused");
+          infoEl.innerHTML = `
+            ✅ <span class="scanner-info-highlight">Liberado!</span><br/>
+            Aponte para o próximo EAN-13.
+          `;
+          setTimeout(() => {
+            if(modoScanner === "EAN" && scannerDiv.style.display === "flex") {
+              infoEl.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">TRAVA</span>. Toque na mensagem para liberar o próximo.`;
+            }
+          }, 1200);
+        }, true);
+      }
+    });
 
     async function adicionarEANManual(){
       if(!cabecalhoAtual){ alert("Carregue a NF primeiro."); return; }
@@ -1166,20 +1296,17 @@
       }
 
       await registrarBipeServidor_(ean13);
-
-      // beepOk continua normal no modo manual (fora do bloqueio do scanner)
       beepOk();
-
       inp.value = ""; inp.focus();
     }
 
     async function fecharLeitor(){
       scannerBloqueado = false;
+      inFlightEAN = false;
       ultimoEanLido = "";
       ultimoEanTimestamp = 0;
 
-      // volta som ao fechar
-      somPermitido = true;
+      logEvent_("CLOSE_SCANNER");
 
       await pararScannerAtual_();
       const scannerDiv = document.getElementById("scanner");
@@ -1261,6 +1388,7 @@
     }
 
     window.addEventListener("load", ()=>{
+
       const f = localStorage.getItem("filial_conf_nf");
       const nome = localStorage.getItem("conferente_conf_nf");
 
@@ -1285,15 +1413,6 @@
           adicionarEANManual();
         }
       });
-
-      // ✅ Libera scanner EAN só tocando na MENSAGEM
-      document.getElementById("scanner-info").addEventListener("click", async (e)=>{
-        // não libera se clicar no fechar (por segurança)
-        if(e.target.closest(".scanner-close")) return;
-        e.stopPropagation();
-        e.preventDefault();
-        await liberarScannerEANPorToque_();
-      }, true);
     });
   </script>
 </body>
