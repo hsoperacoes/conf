@@ -426,9 +426,12 @@
     let cacheInfoEAN = {};
 
     // ✅ CONTROLE REFORÇADO SCANNER EAN - AGORA COM FLAG DE BLOQUEIO
-    let scannerBloqueado = false; // ✅ NOVA VARIÁVEL: bloqueia totalmente novos scans
+    let scannerBloqueado = false; // ✅ bloqueia totalmente novos scans
     let ultimoEanLido = "";
     let ultimoEanTimestamp = 0;
+
+    // ✅ NOVO: blindagem total do som (se travado, NÃO toca beep)
+    let somPermitido = true;
 
     // Sync
     let syncTimer = null;
@@ -696,7 +699,6 @@
         return;
       }
 
-      // ✅ REMOVIDA A SENHA DO AJUSTE MANUAL TAMBÉM
       const atual = Number(mapaScan[ean] || 0);
       const nova = prompt(`Ajustar quantidade para o EAN ${ean}\n\nAtual no servidor: ${atual}\n\nDigite a NOVA quantidade (0 para excluir):`, String(atual));
       if(nova === null) return;
@@ -713,7 +715,7 @@
           chaveAcesso: String(cabecalhoAtual.chaveAcesso || "").trim(),
           ean: String(ean||"").trim(),
           novaQtd: n,
-          senha: "1", // ✅ SENHA FIXA (se quiser remover totalmente, altere no GS também)
+          senha: "1",
           conferente: conferenteAtual || "Usuário"
         });
 
@@ -730,6 +732,9 @@
     }
 
     function beepOk(){
+      // ✅ BLINDAGEM TOTAL: se somPermitido = false, NÃO toca nada (mata “fantasma”)
+      if(!somPermitido) return;
+
       try{
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const o = audioCtx.createOscillator();
@@ -747,20 +752,15 @@
 
     function isValidEAN13(ean){
       if(!ean || typeof ean !== 'string') return false;
-      
-      // Verifica se tem exatamente 13 dígitos
       if(!/^\d{13}$/.test(ean)) return false;
-      
-      // Evita EANs "genéricos" ou inválidos
+
       const primeirosDigitos = ean.substring(0, 3);
       const ultimosDigitos = ean.substring(7);
-      
-      // Filtra códigos suspeitos (muitos zeros, padrões repetidos)
+
       if(ean === '0000000000000') return false;
-      if(/^(\d)\1{12}$/.test(ean)) return false; // Todos dígitos iguais
+      if(/^(\d)\1{12}$/.test(ean)) return false;
       if(primeirosDigitos === '000' && ultimosDigitos === '0000000') return false;
-      
-      // Cálculo do dígito verificador
+
       const digits = ean.split('').map(n => parseInt(n,10));
       const check = digits[12];
       let sum = 0;
@@ -768,32 +768,24 @@
         sum += digits[i] * (i%2===0 ? 1 : 3);
       }
       const calc = (10 - (sum % 10)) % 10;
-      
       return calc === check;
     }
 
     function extrairEAN13DoTexto(texto){
       if(!texto || typeof texto !== 'string') return "";
-      
-      // Remove todos os não-dígitos
+
       const only = texto.replace(/\D/g,"");
-      
-      // Mínimo 13 caracteres
       if(only.length < 13) return "";
-      
-      // Procura sequência de 13 dígitos que seja um EAN válido
+
       for(let i=0; i<=only.length-13; i++){
         const cand = only.substring(i, i+13);
-        
-        // Filtro rápido: não pode ser tudo zeros ou padrão repetido
         if(cand === '0000000000000') continue;
         if(/^(\d)\1{12}$/.test(cand)) continue;
-        
+
         if(isValidEAN13(cand)) {
           return cand;
         }
       }
-      
       return "";
     }
 
@@ -855,6 +847,22 @@
       }
     }
 
+    // ✅ NOVO: pausa/retoma REAL do decoder EAN (mata “bipe fantasma”)
+    async function pausarDecoderEAN_(){
+      try{
+        if(html5ScannerEAN && typeof html5ScannerEAN.pause === "function"){
+          try{ html5ScannerEAN.pause(true); }catch(e){ html5ScannerEAN.pause(); }
+        }
+      }catch(e){}
+    }
+    async function retomarDecoderEAN_(){
+      try{
+        if(html5ScannerEAN && typeof html5ScannerEAN.resume === "function"){
+          html5ScannerEAN.resume();
+        }
+      }catch(e){}
+    }
+
     async function abrirLeitor(modo){
       const scannerDiv = document.getElementById("scanner");
       const scannerView = document.getElementById("scanner-view");
@@ -864,9 +872,12 @@
       scannerDiv.style.display = "flex";
 
       // ✅ RESETA TODOS OS CONTROLES
-      scannerBloqueado = false; // ✅ IMPORTANTE: libera ao abrir
+      scannerBloqueado = false;
       ultimoEanLido = "";
       ultimoEanTimestamp = 0;
+
+      // ✅ Som liberado ao abrir (só fica mudo quando TRAVAR)
+      somPermitido = true;
 
       const notif = scannerDiv.querySelector(".scanner-notification");
       if(notif) notif.remove();
@@ -884,7 +895,7 @@
 
       info.innerHTML = (modoScanner === "NF")
         ? `Aponte para o código de barras da NF (chave <span class="scanner-info-highlight">44 dígitos</span>).<br/>Ao ler, <span class="scanner-info-highlight">fecha automaticamente</span>.`
-        : `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">pausa</span>. Toque na tela para ler o próximo.`;
+        : `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">pausa</span>. Toque na mensagem para liberar.`;
 
       try{
         await pararScannerAtual_();
@@ -963,6 +974,8 @@
 
           travadoNF = true;
           document.getElementById("chave").value = chave;
+
+          // ✅ beep NF continua normal
           beepOk();
 
           await new Promise(r => setTimeout(r, 120));
@@ -984,7 +997,7 @@
         <i class="fas fa-check-circle"></i>
         <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
           <div class="title">CÓDIGO CAPTURADO!</div>
-          <div class="sub">Toque na tela para escanear o próximo</div>
+          <div class="sub">Toque na mensagem para liberar o próximo</div>
           <div class="ean">${ean13}</div>
         </div>
       `;
@@ -998,10 +1011,10 @@
       html5ScannerEAN = new Html5Qrcode("html5-ean");
 
       const config = {
-        fps: 8, // ✅ BAIXO FPS PARA MENOS FALSOS POSITIVOS
+        fps: 8,
         qrbox: { width: 280, height: 280 },
-        experimentalFeatures: { 
-          useBarCodeDetectorIfSupported: true 
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
         },
         rememberLastUsedCamera: true
       };
@@ -1011,74 +1024,60 @@
         config,
         async (decodedText) => {
           if(modoScanner !== "EAN") return;
-          
-          // ✅ BLOQUEIO TOTAL - NÃO PROCESSAR NADA SE JÁ ESTIVER BLOQUEADO
-          if(scannerBloqueado) {
-            return; // Sai imediatamente, não processa nada
-          }
-          
-          // ✅ Filtro de qualidade
+
+          // ✅ BLOQUEIO TOTAL: travado = silêncio + NÃO decodifica (porque pausamos)
+          if(scannerBloqueado) return;
+
           const textoLimpo = String(decodedText || "").trim();
-          if(textoLimpo.length < 10) {
-            return; // Texto muito curto, ignora
-          }
-          
+          if(textoLimpo.length < 10) return;
+
           const ean13 = extrairEAN13DoTexto(textoLimpo);
-          if(!ean13) {
-            return; // Não é EAN válido
-          }
+          if(!ean13) return;
 
-          // ✅ VERIFICAÇÃO DUPLA
-          if(ean13.length !== 13 || !isValidEAN13(ean13)) {
-            return;
-          }
+          if(ean13.length !== 13 || !isValidEAN13(ean13)) return;
 
-          // ✅ ANTI-BIPE DUPLO POR TIMESTAMP - 3 SEGUNDOS AGORA
+          // ✅ anti duplo imediato do mesmo EAN em curto intervalo
           const agora = Date.now();
-          if(ean13 === ultimoEanLido && (agora - ultimoEanTimestamp) < 3000) {
-            return; // Mesmo EAN em menos de 3 segundos, ignora
-          }
+          if(ean13 === ultimoEanLido && (agora - ultimoEanTimestamp) < 3000) return;
 
-          // ✅ BLOQUEIA IMEDIATAMENTE ANTES DE QUALQUER PROCESSAMENTO
+          // ✅ trava imediatamente
           scannerBloqueado = true;
-          
-          // ✅ Atualiza controle de tempo
+
+          // ✅ MUTE TOTAL enquanto travado
+          somPermitido = false;
+
+          // ✅ pausa REAL do decoder (mata "bipe fantasma" de vez)
+          await pausarDecoderEAN_();
+
           ultimoEanLido = ean13;
           ultimoEanTimestamp = agora;
 
-          // ✅ NÃO PAUSA O SCANNER! A câmera continua funcionando
-          // Mas a flag scannerBloqueado já impede novos processamentos
-
           try{
-            // ✅ Registra no servidor
             await registrarBipeServidor_(ean13);
 
-            // ✅ Beep de confirmação
-            beepOk();
-            
-            // ✅ Notificação visual
+            // ⚠️ aqui NÃO vai tocar beep porque somPermitido está false (do jeito que você pediu)
+            // beepOk();
+
             _mostrarNotificacaoEAN_(ean13);
 
-            // ✅ Atualiza UI para mostrar bloqueado
             scannerView.classList.add("scanner-paused");
             info.classList.add("scanner-info-paused");
             info.innerHTML = `
               ✅ <strong>EAN ${ean13}</strong> registrado!<br/>
-              Toque em <span class="scanner-info-highlight">QUALQUER LUGAR</span> da tela para continuar.
+              Toque em <span class="scanner-info-highlight">NA MENSAGEM</span> para liberar o próximo.
             `;
-
-            // ✅ NÃO TEM TIMEOUT! Fica bloqueado até o toque
-
           }catch(e){
-            console.error("Erro ao registrar bipe:", e);
-            // Se falhar, libera o bloqueio
+            // se falhar, libera (e retoma)
             scannerBloqueado = false;
+            somPermitido = true;
+            await retomarDecoderEAN_();
+
             scannerView.classList.remove("scanner-paused");
             info.classList.remove("scanner-info-paused");
           }
         },
         (errorMsg) => {
-          // Callback de erro - ignorar
+          // ignorar
         }
       );
     }
@@ -1124,39 +1123,38 @@
       }
     }
 
-    // ✅ Evento de toque para LIBERAR scanner
-    document.addEventListener("click", async (e)=>{
+    // ✅ LIBERAÇÃO: AGORA SÓ CLICANDO NA MENSAGEM (scanner-info)
+    async function liberarScannerEANPorToque_(){
       const scannerDiv = document.getElementById("scanner");
       if(scannerDiv.style.display !== "flex") return;
       if(modoScanner !== "EAN") return;
-      
-      // Não processa se clicar no botão de fechar
-      if(e.target.closest(".scanner-close")) return;
-      
-      e.stopPropagation();
-      e.preventDefault();
-      
-      // ✅ LIBERA O BLOQUEIO
+      if(!scannerBloqueado) return;
+
+      // libera
       scannerBloqueado = false;
-      
+
+      // volta som
+      somPermitido = true;
+
+      // retoma decoder
+      await retomarDecoderEAN_();
+
       const scannerView = document.getElementById("scanner-view");
       const info = document.getElementById("scanner-info");
-      
+
       scannerView.classList.remove("scanner-paused");
       info.classList.remove("scanner-info-paused");
       info.innerHTML = `
         ✅ <span class="scanner-info-highlight">Scanner liberado!</span><br/>
         Aponte para o próximo EAN-13.
       `;
-      
-      // ✅ Pequeno delay antes de voltar ao texto normal
+
       setTimeout(() => {
         if(modoScanner === "EAN" && scannerDiv.style.display === "flex") {
-          info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, pausa automaticamente.`;
+          info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">pausa</span>. Toque na mensagem para liberar.`;
         }
       }, 1500);
-      
-    }, true); // Use capture phase
+    }
 
     async function adicionarEANManual(){
       if(!cabecalhoAtual){ alert("Carregue a NF primeiro."); return; }
@@ -1168,7 +1166,10 @@
       }
 
       await registrarBipeServidor_(ean13);
+
+      // beepOk continua normal no modo manual (fora do bloqueio do scanner)
       beepOk();
+
       inp.value = ""; inp.focus();
     }
 
@@ -1176,7 +1177,10 @@
       scannerBloqueado = false;
       ultimoEanLido = "";
       ultimoEanTimestamp = 0;
-      
+
+      // volta som ao fechar
+      somPermitido = true;
+
       await pararScannerAtual_();
       const scannerDiv = document.getElementById("scanner");
       scannerDiv.style.display = "none";
@@ -1281,6 +1285,15 @@
           adicionarEANManual();
         }
       });
+
+      // ✅ Libera scanner EAN só tocando na MENSAGEM
+      document.getElementById("scanner-info").addEventListener("click", async (e)=>{
+        // não libera se clicar no fechar (por segurança)
+        if(e.target.closest(".scanner-close")) return;
+        e.stopPropagation();
+        e.preventDefault();
+        await liberarScannerEANPorToque_();
+      }, true);
     });
   </script>
 </body>
