@@ -16,7 +16,6 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
-    /* [MANTENHA TODO O CSS ANTERIOR IGUAL] */
     *{box-sizing:border-box}
     body{
       font-family: Arial, sans-serif;
@@ -120,259 +119,171 @@
     .scanner-close{
       position:absolute;top:15px;right:15px;
       background:rgba(17,24,39,.92);
-      border:1px solid #374151;
-      border-radius:999px;padding:10px 14px;font-size:12px;
-      z-index:99999;
-      box-shadow:0 10px 25px rgba(0,0,0,.35);
-    }
-    .scanner-close:hover{filter:brightness(1.05)}
-
-    #scanner-view{
-      width:min(720px, 92vw);
-      background:#000;
-      border:2px solid #673ab7;
-      border-radius:16px;
-      padding:14px;
-      box-shadow:0 20px 70px rgba(103,58,183,.25);
-      position:relative;
-      overflow:hidden;
-    }
-    #scanner-view::before{
-      content:'';
-      position:absolute;top:0;left:0;right:0;height:4px;
-      background:linear-gradient(90deg,#673ab7,#0f766e,#673ab7);
-      background-size:200% 100%;
-      animation:scanner-glow 3s linear infinite;
-    }
-    @keyframes scanner-glow{
-      0%{background-position:0% 0}
-      100%{background-position:200% 0}
-    }
-
-    #scanner video,#scanner canvas{
-      width:100%!important;height:auto!important;
-      border-radius:12px;
-      max-width:none!important;max-height:none!important;
+      color:#fff;border:1px solid #374151;padding:10px 20px;border-radius:999px;
+      font-weight:700;cursor:pointer;z-index:1001;
+      display:flex;align-items:center;gap:8px;
     }
 
     .scanner-info{
-      margin-top:14px;
-      font-size:14px;
-      text-align:center;
-      color:#e5e7eb;
-      width:min(720px, 92vw);
-      padding:12px 14px;
-      background:rgba(31,41,55,.55);
-      border:1px solid #374151;
-      border-radius:14px;
-      box-shadow:0 10px 30px rgba(0,0,0,.25);
+      margin-top:20px;color:#fff;text-align:center;font-size:16px;
+      background:rgba(17,24,39,.85);padding:15px 25px;border-radius:16px;
+      border:1px solid #374151;max-width:85%;line-height:1.4;
+      box-shadow:0 10px 30px rgba(0,0,0,.4);
     }
-    .scanner-info-highlight{
-      color:#bbf7d0;
-      font-weight:800;
-      background:rgba(15,118,110,.22);
-      padding:2px 8px;
-      border-radius:8px;
-      display:inline-block;
-      margin:0 4px;
-    }
+    .scanner-info-highlight{color:#a78bfa;font-weight:800}
 
+    /* Estilo quando pausado */
     .scanner-paused{
-      border-color:#0f766e!important;
-      box-shadow:0 20px 70px rgba(15,118,110,.22)!important;
+      border: 4px solid #10b981 !important;
+      box-shadow: 0 0 40px rgba(16,185,129,0.4) !important;
     }
     .scanner-info-paused{
-      background:rgba(15,118,110,.18)!important;
-      border-color:#0f766e!important;
-      color:#bbf7d0!important;
+      background: rgba(6,78,59,0.9) !important;
+      border-color: #10b981 !important;
     }
 
     .scanner-notification{
-      position:absolute;
-      top:18px;left:50%;
-      transform:translateX(-50%);
-      background:linear-gradient(135deg,#0f766e 0%,#115e59 100%);
-      color:#fff;
-      padding:12px 18px;
-      border-radius:14px;
-      border:2px solid rgba(187,247,208,.25);
-      box-shadow:0 12px 30px rgba(15,118,110,.35);
-      display:flex;align-items:center;gap:12px;
-      z-index:100000;
-      max-width:90vw;
-      text-align:center;
-      animation:slide-in .35s ease-out;
+      position:fixed;top:20px;left:50%;transform:translateX(-50%);
+      background:#10b981;color:#fff;padding:12px 24px;border-radius:12px;
+      font-weight:800;display:flex;align-items:center;gap:12px;z-index:2000;
+      box-shadow:0 10px 25px rgba(0,0,0,.3);
+      animation: slideDown 0.4s ease-out;
     }
-    @keyframes slide-in{
-      from{opacity:0;transform:translateX(-50%) translateY(-16px)}
-      to{opacity:1;transform:translateX(-50%) translateY(0)}
+    @keyframes slideDown{
+      from{top:-100px;opacity:0}
+      to{top:20px;opacity:1}
     }
-    .scanner-notification i{font-size:20px;color:#bbf7d0}
-    .scanner-notification .title{font-weight:900;letter-spacing:.5px}
-    .scanner-notification .sub{font-size:12px;opacity:.9}
-    .scanner-notification .ean{
-      margin-top:6px;
-      font-family:monospace;
-      font-size:16px;
-      font-weight:900;
-      letter-spacing:2px;
-      background:rgba(0,0,0,.25);
-      border:1px solid rgba(187,247,208,.2);
-      border-radius:10px;
-      padding:6px 10px;
-    }
+    .scanner-notification i{font-size:20px}
+    .scanner-notification .ean{font-family:monospace;background:rgba(0,0,0,.2);padding:2px 6px;border-radius:4px}
 
-    .mini-teste{
-      margin-top:10px;padding:10px;border:1px dashed #444;border-radius:10px;background:#1b1b1b;
+    /* =========================================================
+       ✅ MODAL DIVERGÊNCIA
+    ========================================================= */
+    .modal-overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.8);
+      display:none;justify-content:center;align-items:center;z-index:2000;
+      padding:20px;
     }
-    .mini-teste .row{align-items:center}
-    .mini-teste input{margin:0}
-    .mini-teste button{min-width:160px}
+    .modal-content{
+      background:#1e1e1e;width:100%;max-width:500px;border-radius:16px;
+      border:1px solid #333;padding:25px;box-shadow:0 20px 50px rgba(0,0,0,.5);
+    }
+    .modal-header{font-size:18px;font-weight:900;color:#f97373;margin-bottom:15px;text-align:center}
+    .modal-body{max-height:300px;overflow:auto;margin-bottom:20px}
+    .modal-item{
+      background:#262626;padding:10px;border-radius:8px;margin-bottom:8px;
+      border-left:4px solid #f97373;font-size:13px;
+    }
+    .modal-footer{text-align:center}
+    .modal-footer button{width:100%;padding:12px;background:#444}
 
-    .btn-ajuste{
-      background:#374151;color:#fff;
-      padding:4px 8px;font-size:11px;border-radius:6px;
-      cursor:pointer;
-      border:1px solid #4b5563;
-    }
-    .btn-ajuste:hover{background:#4b5563}
+    footer{margin:30px 0;font-size:12px;color:#666;text-align:center}
 
-    .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-      display: none; justify-content: center; align-items: center; z-index: 2000;
-    }
-    .modal-content {
-      background: #1e1e1e; padding: 25px; border-radius: 12px; width: 90%; max-width: 600px;
-      border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-    .modal-header { color: #f97373; font-size: 1.2rem; font-weight: 800; margin-bottom: 15px; text-align: center; }
-    .modal-body { max-height: 300px; overflow-y: auto; margin-bottom: 20px; font-size: 14px; }
-    .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; gap:10px; }
-    .modal-footer { text-align: center; }
-
-    footer{
-      text-align:center;font-size:13px;color:#ccc;background:#2c2c2c;padding:10px 15px;border-radius:6px;margin:10px;max-width:980px;width:100%;
-    }
-
-    @media (max-width: 860px){
+    @media(max-width:600px){
       .cards{grid-template-columns:1fr}
-      .linha-botoes{flex-direction:column}
+      .linha-botoes button{flex:1 1 100%}
     }
   </style>
 </head>
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=2.2" class="back-button">
-      <i class="fas fa-arrow-left"></i> Voltar à Home
+    <a href="https://hs-sistema.github.io/Menu/" class="back-button">
+      <i class="fas fa-arrow-left"></i> Voltar ao Menu
     </a>
   </div>
 
-  <img src="logo.png?version=2.2" alt="Logo HS" class="logo-topo" />
+  <img src="https://i.ibb.co/p6pYvPz/HS-LOGOTIPO-BRANCO.png" class="logo-topo" alt="HS Logo" />
 
   <div class="container">
-    <div class="form-container">
-
-      <div id="login" class="login-box">
-        <h2>Login da Filial</h2>
-
-        <label for="codigo-filial">Código da Filial</label>
-        <input id="codigo-filial" type="text" placeholder="Ex: 293, 488, 287, 288, 761" />
-
-        <label for="nome-conferente">Conferente</label>
-        <input id="nome-conferente" type="text" placeholder="Ex: WILL" />
-
+    <!-- TELA DE LOGIN -->
+    <div id="login" class="form-container">
+      <h1>Conferência NF</h1>
+      <div class="login-box">
+        <label>Código da Filial</label>
+        <input type="number" id="codigo-filial" placeholder="Ex: 293" />
+        <label>Nome do Conferente</label>
+        <input type="text" id="nome-conferente" placeholder="Seu nome" />
         <button class="btn-full" onclick="entrar()">
-          <i class="fas fa-door-open"></i> Entrar
+          <i class="fas fa-sign-in-alt"></i> Acessar Sistema
+        </button>
+      </div>
+    </div>
+
+    <!-- TELA PRINCIPAL -->
+    <div id="principal" class="hidden">
+      <div class="logout">
+        <button class="btn-secundario" onclick="sair()">
+          <i class="fas fa-sign-out-alt"></i> Sair
         </button>
       </div>
 
-      <div id="principal" class="hidden">
-        <div class="logout">
-          <button class="btn-secundario" onclick="sair()">
-            <i class="fas fa-sign-out-alt"></i> Sair
+      <div id="info-filial" class="info-filial"></div>
+      <div id="info-conferente" class="info-conferente"></div>
+
+      <div class="form-container">
+        <label>Chave de Acesso (44 dígitos)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="chave" maxlength="44" placeholder="Cole ou escaneie a chave" />
+          <button onclick="abrirLeitor('NF')" title="Escanear Chave">
+            <i class="fas fa-barcode"></i>
           </button>
         </div>
+        <button class="btn-full btn-ok" onclick="carregarNF()">
+          <i class="fas fa-search"></i> Carregar Nota Fiscal
+        </button>
+        <div id="loading" class="loading hidden">Buscando dados da NF...</div>
+        <div id="erro" class="erro"></div>
+        <div id="msg" class="loading hidden" style="color:#10b981"></div>
+      </div>
 
-        <h1>Conferência de Nota Fiscal</h1>
-        <div class="info-filial" id="info-filial"></div>
-        <div class="info-conferente" id="info-conferente"></div>
-
-        <label for="chave">Chave de Acesso (44 dígitos)</label>
-        <input id="chave" type="text" maxlength="44" placeholder="Digite ou leia o código de barras da NF" />
+      <div id="painel" class="hidden">
+        <div class="cards">
+          <div class="card">
+            <div class="kpi"><strong>Total NF:</strong> <span id="kpi-nf">0</span></div>
+            <div class="kpi"><strong>Total Scan:</strong> <span id="kpi-scan">0</span></div>
+          </div>
+          <div class="card">
+            <div class="kpi"><strong>Itens OK:</strong> <span id="kpi-ok" style="color:#10b981">0</span></div>
+            <div class="kpi"><strong>Divergentes:</strong> <span id="kpi-erro" style="color:#f97373">0</span></div>
+          </div>
+        </div>
 
         <div class="linha-botoes">
-          <button onclick="abrirLeitor('NF')">
-            <i class="fas fa-camera"></i> Ler Chave da NF
+          <button onclick="abrirLeitor('EAN')">
+            <i class="fas fa-camera"></i> ESCANEAR PEÇAS
           </button>
-          <button onclick="carregarNF()">
-            <i class="fas fa-cloud-download-alt"></i> Carregar Itens da NF
+          <button class="btn-secundario" onclick="zerarConferencia()">
+            <i class="fas fa-trash"></i> ZERAR TUDO
           </button>
         </div>
 
-        <div id="loading" class="loading hidden">⏳ Carregando itens da NF...</div>
-        <div id="erro" class="erro"></div>
-
-        <div id="painel" class="hidden">
-          <div class="cards">
-            <div class="card">
-              <div class="titulo">Resumo da NF</div>
-              <div class="muted" id="resumo-nf"></div>
-
-              <div class="kpi"><strong>Total itens na NF</strong><span id="kpi-nf">0</span></div>
-              <div class="kpi"><strong>Total escaneado</strong><span id="kpi-scan">0</span></div>
-              <div class="kpi"><strong>Sync (tempo real)</strong><span id="kpi-sync">—</span></div>
-            </div>
-
-            <div class="card">
-              <div class="titulo">Scanner de Peças</div>
-              <div class="muted">Escaneie os EANs das etiquetas. Vai somando automático <strong>(multiusuário na mesma NF)</strong>.</div>
-
-              <div class="linha-botoes" style="margin-top:10px">
-                <button class="btn-ok" onclick="abrirLeitor('EAN')">
-                  <i class="fas fa-barcode"></i> Escanear EAN (Peças)
-                </button>
-                <button class="btn-secundario" onclick="limparScans()">
-                  <i class="fas fa-eraser"></i> Zerar Scans
-                </button>
-              </div>
-
-              <div class="mini-teste">
-                <div class="muted" style="margin-bottom:6px"><strong>Teste sem câmera:</strong> cole um EAN e clique em Adicionar</div>
-                <div id="buffer-ean" class="loading hidden" style="margin-bottom:5px">🔍 Buscando dados no banco...</div>
-                <div class="row" style="gap:10px">
-                  <input id="ean-manual" type="text" placeholder="Cole aqui o EAN (somente números)" />
-                  <button class="btn-ok" onclick="adicionarEANManual()">
-                    <i class="fas fa-plus"></i> Adicionar
-                  </button>
-                </div>
-              </div>
-
-              <div class="linha-botoes">
-                <button class="btn-full" onclick="fazerConferencia()">
-                  <i class="fas fa-clipboard-check"></i> Fazer Conferência
-                </button>
-                <button id="btn-enviar" class="btn-full hidden" onclick="enviarConferencia()">
-                  <i class="fas fa-paper-plane"></i> Enviar Resultado
-                </button>
-              </div>
-
-              <div id="msg" class="loading hidden"></div>
-            </div>
+        <div class="form-container campo-pesquisa">
+          <label>Adicionar EAN Manualmente</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="ean-manual" placeholder="Digite o EAN e aperte Enter" />
+            <button onclick="adicionarEANManual()">
+              <i class="fas fa-plus"></i>
+            </button>
           </div>
-
-          <div class="campo-pesquisa">
-            <label for="filtro">Buscar (EAN / referência / cor / tamanho)</label>
-            <input id="filtro" type="text" placeholder="Digite para filtrar..." />
-          </div>
-
-          <div class="titulo">
-            Resultado da Conferência
-            <small id="resumo-div"></small>
-          </div>
-
-          <div id="lista" class="lista"></div>
         </div>
+
+        <div class="form-container campo-pesquisa">
+          <label>Filtrar na Lista</label>
+          <input type="text" id="filtro" placeholder="Filtrar por EAN, Ref ou Cor..." />
+        </div>
+
+        <button id="btn-enviar" class="btn-full btn-ok hidden" style="margin-top:20px; padding:15px; font-size:16px" onclick="enviarConferencia()">
+          <i class="fas fa-cloud-upload-alt"></i> FINALIZAR E ENVIAR CONFERÊNCIA
+        </button>
+
+        <div id="resumo-div" style="margin-top:15px; font-weight:bold; text-align:center"></div>
+
+        <div class="titulo">
+          LISTA DE ITENS <small id="buffer-ean" class="hidden" style="color:#f59e0b">⏳ Buscando info...</small>
+        </div>
+
+        <div id="lista" class="lista"></div>
       </div>
     </div>
   </div>
@@ -398,11 +309,11 @@
   </div>
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.2
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.3
   </footer>
 
   <script>
-    const APP_VERSION = "2.2";
+    const APP_VERSION = "2.3";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -429,6 +340,7 @@
     let scannerBloqueado = false; // ✅ NOVA VARIÁVEL: bloqueia totalmente novos scans
     let ultimoEanLido = "";
     let ultimoEanTimestamp = 0;
+    let processandoBipe = false; // ✅ NOVA FLAG: impede processamento simultâneo
 
     // Sync
     let syncTimer = null;
@@ -469,8 +381,7 @@
     }
 
     function sair(){
-      if(!confirm("Deseja sair?")) return;
-      pararSync_();
+      if(!confirm("Deseja realmente sair?")) return;
       localStorage.removeItem("filial_conf_nf");
       localStorage.removeItem("conferente_conf_nf");
       location.reload();
@@ -480,445 +391,318 @@
       const chave = document.getElementById("chave").value.trim();
       const erro = document.getElementById("erro");
       const loading = document.getElementById("loading");
-      const painel = document.getElementById("painel");
-
-      if(chave.length !== 44){ alert("A chave deve ter 44 dígitos."); return; }
 
       erro.textContent = "";
+      if(chave.length !== 44){ erro.textContent = "A chave deve ter 44 dígitos."; return; }
+
       loading.classList.remove("hidden");
-      painel.classList.add("hidden");
+      document.getElementById("painel").classList.add("hidden");
 
-      pararSync_();
-      document.getElementById("kpi-sync").textContent = "—";
-
-      try {
-        const resp = await fetch(`${URL_API}?api=consultarConferenciaNF&filial=${encodeURIComponent(filialAtual)}&chave=${encodeURIComponent(chave)}&v=${APP_VERSION}&t=${Date.now()}`);
+      try{
+        const url = `${URL_API}?api=consultarConferenciaNF&filial=${filialAtual}&chave=${chave}&t=${Date.now()}`;
+        const resp = await fetch(url);
         const data = await resp.json();
-        if(!data.success) throw new Error(data.message || "Erro ao buscar NF.");
+
+        if(!data.success){
+          erro.textContent = data.message || "Erro ao buscar NF.";
+          return;
+        }
 
         cabecalhoAtual = data.cabecalho;
         itensNF = data.itens || [];
+        
+        // Inicia o mapaScan com o que já foi escaneado (sync do banco)
         mapaScan = {};
+        itensNF.forEach(it => {
+          if(it.jaEscaneado > 0) mapaScan[it.ean] = it.jaEscaneado;
+        });
 
-        document.getElementById("resumo-nf").innerHTML = `
-          <strong>NF:</strong> ${cabecalhoAtual.numeroNF} |
-          <strong>Emitente:</strong> ${cabecalhoAtual.nomeEmitente} |
-          <strong>Data:</strong> ${cabecalhoAtual.dataEmissao}
-        `;
-
-        atualizarKPIs();
         document.getElementById("painel").classList.remove("hidden");
-        document.getElementById("btn-enviar").classList.add("hidden");
         render(montarListaConferencia(false));
-
+        
         iniciarSync_();
-      } catch(err) {
-        erro.textContent = err.message;
-      } finally {
+
+      }catch(err){
+        erro.textContent = "Erro de conexão: " + err.message;
+      }finally{
         loading.classList.add("hidden");
       }
     }
 
-    function atualizarKPIs(){
-      let totalNF = Number(cabecalhoAtual?.totalItensNF || 0);
-      if(!totalNF){
-        totalNF = 0;
-        itensNF.forEach(i => totalNF += Number(i.quantidade || 0));
-      }
+    function iniciarSync_(){
+      pararSync_();
+      syncAtivo = true;
+      puxarSyncAgora_();
+      syncTimer = setInterval(puxarSyncAgora_, 5000);
+    }
 
-      let totalScan = 0;
-      Object.values(mapaScan).forEach(v => totalScan += Number(v || 0));
+    function pararSync_(){
+      syncAtivo = false;
+      if(syncTimer) clearInterval(syncTimer);
+      syncTimer = null;
+    }
 
-      document.getElementById("kpi-nf").textContent = totalNF;
-      document.getElementById("kpi-scan").textContent = totalScan;
+    async function puxarSyncAgora_(){
+      if(!syncAtivo || !cabecalhoAtual) return;
+      try{
+        const url = `${URL_API}?api=sincronizarBipes&chave=${cabecalhoAtual.chaveAcesso}&t=${Date.now()}`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+
+        if(data.success && data.bipes){
+          const novoHash = JSON.stringify(data.bipes);
+          if(novoHash !== ultimoSyncHash){
+            ultimoSyncHash = novoHash;
+            mapaScan = data.bipes;
+            const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+            render(montarListaConferencia(jaConferido));
+          }
+        }
+      }catch(e){}
     }
 
     function montarListaConferencia(jaConferido){
       const lista = [];
       const eansNaNota = new Set();
 
-      itensNF.forEach(i => {
-        const ean = String(i.ean || "").trim();
-        if(!ean) return;
+      itensNF.forEach(it => {
+        const ean = it.ean;
         eansNaNota.add(ean);
-
         const qtdScan = Number(mapaScan[ean] || 0);
-        const qtdNF = Number(i.quantidade || 0);
-        const diff = qtdScan - qtdNF;
+        const diff = qtdScan - it.quantidade;
 
-        let status = "";
-        if(jaConferido){
-          if(diff === 0) status = "OK";
-          else if(diff < 0) status = "FALTANDO";
-          else status = "PASSANDO";
-        }
+        let status = "PENDENTE";
+        if(qtdScan === it.quantidade) status = "OK";
+        else if(qtdScan < it.quantidade) status = "FALTANDO";
+        else status = "PASSANDO";
 
         lista.push({
           ean,
-          codigo:i.codigo, cor:i.cor, tamanho:i.tamanho,
-          qtdNF, qtdScan, diff, status, tipo:"nota"
+          codigo: it.codigo,
+          cor: it.cor,
+          tamanho: it.tamanho,
+          qtdNF: it.quantidade,
+          qtdScan,
+          diff,
+          status,
+          naNota: true
         });
       });
 
       Object.keys(mapaScan).forEach(ean => {
         if(!eansNaNota.has(ean)){
-          const info = cacheInfoEAN[ean] || { codigo:"---", cor:"---", tamanho:"---" };
+          const info = cacheInfoEAN[ean] || { codigo:"?", cor:"?", tamanho:"?" };
+          const qtdScan = Number(mapaScan[ean] || 0);
           lista.push({
             ean,
             codigo: info.codigo,
             cor: info.cor,
             tamanho: info.tamanho,
             qtdNF: 0,
-            qtdScan: Number(mapaScan[ean] || 0),
-            diff: Number(mapaScan[ean] || 0),
-            status: jaConferido ? "EXTRA" : "",
-            tipo:"extra"
+            qtdScan,
+            diff: qtdScan,
+            status: "EXTRA",
+            naNota: false
           });
         }
       });
 
+      let filtrada = lista;
       if(termoFiltro){
         const t = termoFiltro.toLowerCase();
-        return lista.filter(i =>
-          String(i.ean).includes(t) ||
-          String(i.codigo).toLowerCase().includes(t) ||
-          String(i.cor).toLowerCase().includes(t) ||
-          String(i.tamanho).toLowerCase().includes(t)
+        filtrada = lista.filter(i => 
+          i.ean.includes(t) || 
+          String(i.codigo).toLowerCase().includes(t) || 
+          String(i.cor).toLowerCase().includes(t)
         );
       }
 
-      return lista;
+      // Ordenação: Erros primeiro, depois OK
+      filtrada.sort((a,b) => {
+        if(a.status === "OK" && b.status !== "OK") return 1;
+        if(a.status !== "OK" && b.status === "OK") return -1;
+        return 0;
+      });
+
+      return filtrada;
     }
 
     function render(lista){
       const container = document.getElementById("lista");
       container.innerHTML = "";
 
-      let faltam = 0;
-      let passam = 0;
+      let totalNF = 0;
+      let totalScan = 0;
+      let totalOK = 0;
+      let totalErro = 0;
 
-      lista.forEach(i => {
-        if(i.status === "FALTANDO") faltam++;
-        if(i.status === "PASSANDO" || i.status === "EXTRA") passam++;
+      lista.forEach(it => {
+        if(it.naNota) totalNF += it.qtdNF;
+        totalScan += it.qtdScan;
+
+        if(it.status === "OK") totalOK++;
+        else totalErro++;
 
         const div = document.createElement("div");
         div.className = "item";
-
+        
         let badgeClass = "badge";
-        if(i.status === "OK") badgeClass += " ok";
-        else if(i.status === "FALTANDO") badgeClass += " faltando";
-        else if(i.status === "PASSANDO") badgeClass += " passando";
-        else if(i.status === "EXTRA") badgeClass += " extra";
+        if(it.status === "OK") badgeClass += " ok";
+        else if(it.status === "FALTANDO") badgeClass += " faltando";
+        else if(it.status === "PASSANDO") badgeClass += " passando";
+        else if(it.status === "EXTRA") badgeClass += " extra";
 
         div.innerHTML = `
-          <div class="row" style="align-items:center">
-            <strong>EAN: ${i.ean}</strong>
-            <div style="display:flex;gap:8px;align-items:center">
-              ${i.status ? `<span class="${badgeClass}">${i.status}</span>` : ""}
-              <button class="btn-ajuste" onclick="ajusteManualServidor('${i.ean}')">
-                <i class="fas fa-edit"></i> Ajustar
-              </button>
-            </div>
+          <div class="row">
+            <span style="font-weight:800; font-size:14px">${it.codigo} - ${it.cor} (${it.tamanho})</span>
+            <span class="${badgeClass}">${it.status}</span>
           </div>
           <div class="row muted">
-            <span>Ref/Cor: ${i.codigo} / ${i.cor}</span>
-            <span>Tam: ${i.tamanho}</span>
-            <span>NF: ${i.qtdNF}</span>
-            <span>Scan: ${i.qtdScan}</span>
-            <span>Dif: ${i.diff}</span>
+            <span>EAN: ${it.ean}</span>
+            <span>NF: <strong>${it.qtdNF}</strong> | Scan: <strong style="color:#fff">${it.qtdScan}</strong></span>
+          </div>
+          <div class="row" style="margin-top:4px">
+            <span style="font-size:11px; color:${it.diff===0?'#10b981':'#f97373'}">
+              ${it.diff === 0 ? "Qtd correta" : (it.diff > 0 ? `+${it.diff} peça(s) a mais` : `${it.diff} peça(s) faltando`)}
+            </span>
+            <button class="btn-secundario" style="padding:4px 10px; font-size:11px" onclick="ajustarManual('${it.ean}', ${it.qtdScan})">
+              <i class="fas fa-edit"></i> Ajustar
+            </button>
           </div>
         `;
         container.appendChild(div);
       });
 
+      document.getElementById("kpi-nf").textContent = totalNF;
+      document.getElementById("kpi-scan").textContent = totalScan;
+      document.getElementById("kpi-ok").textContent = totalOK;
+      document.getElementById("kpi-erro").textContent = totalErro;
+
+      const btnEnviar = document.getElementById("btn-enviar");
       const resumoDiv = document.getElementById("resumo-div");
-      if(faltam > 0 || passam > 0){
-        resumoDiv.innerHTML = `
-          <span style="color:#f97373">${faltam} itens FALTANDO</span>,
-          <span style="color:#43b0ff">${passam} itens PASSANDO</span>
-        `;
+
+      if(totalScan > 0 && totalScan >= totalNF){
+        btnEnviar.classList.remove("hidden");
+        if(totalScan === totalNF && totalErro === 0){
+          resumoDiv.innerHTML = `<span style="color:#10b981"><i class="fas fa-check-double"></i> TUDO CONFERIDO E OK!</span>`;
+        } else {
+          resumoDiv.innerHTML = `<span style="color:#f59e0b"><i class="fas fa-exclamation-triangle"></i> CONFERÊNCIA COM DIVERGÊNCIAS</span>`;
+        }
       } else {
+        btnEnviar.classList.add("hidden");
         resumoDiv.textContent = "";
       }
     }
 
-    function fazerConferencia(){
-      const lista = montarListaConferencia(true);
-      render(lista);
-      document.getElementById("btn-enviar").classList.remove("hidden");
-
-      const divergencias = lista.filter(i => i.diff !== 0);
-      if(divergencias.length > 0) abrirModal(divergencias);
-    }
-
-    function abrirModal(divergencias){
-      const modal = document.getElementById("modal-divergencia");
-      const listaModal = document.getElementById("modal-lista");
-      listaModal.innerHTML = "";
-
-      divergencias.forEach(i => {
-        const div = document.createElement("div");
-        div.className = "modal-item";
-        const cor = i.diff < 0 ? "#f97373" : "#43b0ff";
-        const labelExtra = i.status === "EXTRA" ? " (EXTRA)" : "";
-        div.innerHTML = `
-          <span><strong>${i.codigo} / ${i.cor} / ${i.tamanho}</strong>${labelExtra}</span>
-          <span style="color:${cor}; font-weight:900">Dif: ${i.diff}</span>
-        `;
-        listaModal.appendChild(div);
-      });
-
-      modal.style.display = "flex";
-    }
-
-    function fecharModal(){
-      document.getElementById("modal-divergencia").style.display = "none";
-    }
-
-    async function limparScans(){
-      if(!cabecalhoAtual) return;
-      if(!confirm("Zerar TODA a contagem dessa NF (para todos os usuários)?")) return;
-
-      try{
-        await postJSON_({
-          api:"zerarSyncNF",
-          chaveAcesso: String(cabecalhoAtual.chaveAcesso || "").trim()
-        });
-      }catch(e){}
-
-      puxarSyncAgora_();
-      alert("Zerado no servidor (e o Sync vai atualizar a tela).");
-    }
-
-    async function ajusteManualServidor(ean){
-      if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso){
-        alert("Carregue a NF primeiro.");
-        return;
-      }
-
-      // ✅ REMOVIDA A SENHA DO AJUSTE MANUAL TAMBÉM
-      const atual = Number(mapaScan[ean] || 0);
-      const nova = prompt(`Ajustar quantidade para o EAN ${ean}\n\nAtual no servidor: ${atual}\n\nDigite a NOVA quantidade (0 para excluir):`, String(atual));
+    async function ajustarManual(ean, qtdAtual){
+      const nova = prompt(`Ajustar quantidade para o EAN ${ean}:`, qtdAtual);
       if(nova === null) return;
-
-      const n = parseInt(String(nova).trim(), 10);
-      if(isNaN(n) || n < 0){
-        alert("Valor inválido.");
-        return;
-      }
+      const n = parseInt(nova, 10);
+      if(isNaN(n) || n < 0){ alert("Quantidade inválida."); return; }
 
       try{
-        const data = await postJSON_({
-          api:"ajustarBipeManual",
-          chaveAcesso: String(cabecalhoAtual.chaveAcesso || "").trim(),
-          ean: String(ean||"").trim(),
+        const res = await postJSON_({
+          api: "ajustarBipeManual",
+          chaveAcesso: cabecalhoAtual.chaveAcesso,
+          ean: ean,
           novaQtd: n,
-          senha: "1", // ✅ SENHA FIXA (se quiser remover totalmente, altere no GS também)
-          conferente: conferenteAtual || "Usuário"
+          conferente: conferenteAtual
         });
-
-        if(!data || !data.success){
-          alert(data?.message || "Não consegui ajustar no servidor.");
-          return;
-        }
-
-        await puxarSyncAgora_();
-        alert("Ajuste aplicado no servidor!");
-      }catch(e){
-        alert("Erro ao ajustar no servidor.");
-      }
+        if(res.success) puxarSyncAgora_();
+        else alert("Erro: " + res.message);
+      }catch(e){ alert("Erro de conexão."); }
     }
 
-    function beepOk(){
+    async function zerarConferencia(){
+      if(!confirm("Isso apagará TODOS os bipes desta nota. Tem certeza?")) return;
+      try{
+        const res = await postJSON_({
+          api: "zerarSyncNF",
+          chaveAcesso: cabecalhoAtual.chaveAcesso
+        });
+        if(res.success) puxarSyncAgora_();
+      }catch(e){}
+    }
+
+    // =========================================================
+    // ✅ LÓGICA DO SCANNER (Html5Qrcode)
+    // =========================================================
+
+    function beepOk() {
       try{
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const o = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        o.type = "square";
-        o.frequency.value = 880;
-        g.gain.value = 0.08;
-        o.connect(g);
-        g.connect(audioCtx.destination);
-        o.start();
-        setTimeout(()=>{ o.stop(); }, 110);
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
       }catch(e){}
-      try{ if(navigator.vibrate) navigator.vibrate(50); }catch(e){}
     }
 
-    function isValidEAN13(ean){
-      if(!ean || typeof ean !== 'string') return false;
-      
-      // Verifica se tem exatamente 13 dígitos
-      if(!/^\d{13}$/.test(ean)) return false;
-      
-      // Evita EANs "genéricos" ou inválidos
-      const primeirosDigitos = ean.substring(0, 3);
-      const ultimosDigitos = ean.substring(7);
-      
-      // Filtra códigos suspeitos (muitos zeros, padrões repetidos)
-      if(ean === '0000000000000') return false;
-      if(/^(\d)\1{12}$/.test(ean)) return false; // Todos dígitos iguais
-      if(primeirosDigitos === '000' && ultimosDigitos === '0000000') return false;
-      
-      // Cálculo do dígito verificador
-      const digits = ean.split('').map(n => parseInt(n,10));
-      const check = digits[12];
+    function extrairChave44(t){
+      const m = t.match(/\d{44}/);
+      return m ? m[0] : null;
+    }
+
+    function extrairEAN13DoTexto(t){
+      const m = t.match(/\d{13}/);
+      return m ? m[0] : null;
+    }
+
+    function isValidEAN13(ean) {
+      if (!/^\d{13}$/.test(ean)) return false;
       let sum = 0;
-      for(let i=0; i<12; i++){
-        sum += digits[i] * (i%2===0 ? 1 : 3);
+      for (let i = 0; i < 12; i++) {
+        sum += parseInt(ean[i]) * (i % 2 === 0 ? 1 : 3);
       }
-      const calc = (10 - (sum % 10)) % 10;
-      
-      return calc === check;
-    }
-
-    function extrairEAN13DoTexto(texto){
-      if(!texto || typeof texto !== 'string') return "";
-      
-      // Remove todos os não-dígitos
-      const only = texto.replace(/\D/g,"");
-      
-      // Mínimo 13 caracteres
-      if(only.length < 13) return "";
-      
-      // Procura sequência de 13 dígitos que seja um EAN válido
-      for(let i=0; i<=only.length-13; i++){
-        const cand = only.substring(i, i+13);
-        
-        // Filtro rápido: não pode ser tudo zeros ou padrão repetido
-        if(cand === '0000000000000') continue;
-        if(/^(\d)\1{12}$/.test(cand)) continue;
-        
-        if(isValidEAN13(cand)) {
-          return cand;
-        }
-      }
-      
-      return "";
-    }
-
-    function extrairChave44(texto){
-      const only = String(texto || "").replace(/\D/g, "");
-      if (only.length < 44) return "";
-      for (let i=0; i<=only.length-44; i++){
-        const cand = only.slice(i, i+44);
-        if (/^\d{44}$/.test(cand)) return cand;
-      }
-      return "";
-    }
-
-    function iniciarSync_(){
-      if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
-      syncAtivo = true;
-      ultimoSyncHash = "";
-      puxarSyncAgora_();
-      syncTimer = setInterval(() => puxarSyncAgora_(), 1100);
-    }
-
-    function pararSync_(){
-      syncAtivo = false;
-      if(syncTimer){ clearInterval(syncTimer); syncTimer = null; }
-      document.getElementById("kpi-sync").textContent = "—";
-    }
-
-    function _hashMapa_(obj){
-      const keys = Object.keys(obj || {}).sort();
-      let s = "";
-      for(const k of keys){ s += k + ":" + String(obj[k]) + ";"; }
-      return s;
-    }
-
-    async function puxarSyncAgora_(){
-      if(!syncAtivo || !cabecalhoAtual) return;
-      const chave = String(cabecalhoAtual.chaveAcesso || "").trim();
-      if(!chave || chave.length !== 44) return;
-
-      try{
-        const resp = await fetch(`${URL_API}?api=sincronizarBipes&chave=${encodeURIComponent(chave)}&v=${APP_VERSION}&t=${Date.now()}`);
-        const data = await resp.json();
-        if(!data || !data.success) throw new Error("sync fail");
-
-        const bipes = data.bipes || {};
-        const hash = _hashMapa_(bipes);
-
-        if(hash !== ultimoSyncHash){
-          ultimoSyncHash = hash;
-          mapaScan = bipes;
-          atualizarKPIs();
-          const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
-          render(montarListaConferencia(jaConferido));
-        }
-
-        document.getElementById("kpi-sync").textContent = "OK";
-      }catch(e){
-        document.getElementById("kpi-sync").textContent = "OFF";
-      }
+      const checkDigit = (10 - (sum % 10)) % 10;
+      return checkDigit === parseInt(ean[12]);
     }
 
     async function abrirLeitor(modo){
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      
+      modoScanner = modo;
       const scannerDiv = document.getElementById("scanner");
       const scannerView = document.getElementById("scanner-view");
       const info = document.getElementById("scanner-info");
 
-      modoScanner = modo;
       scannerDiv.style.display = "flex";
-
-      // ✅ RESETA TODOS OS CONTROLES
-      scannerBloqueado = false; // ✅ IMPORTANTE: libera ao abrir
+      scannerView.innerHTML = "";
+      
+      // Reset flags
+      scannerBloqueado = false;
+      processandoBipe = false; // ✅ Reset flag
       ultimoEanLido = "";
       ultimoEanTimestamp = 0;
 
-      const notif = scannerDiv.querySelector(".scanner-notification");
-      if(notif) notif.remove();
-
-      scannerView.classList.remove("scanner-paused");
-      info.classList.remove("scanner-info-paused");
-
-      if(modoScanner === "EAN" && !cabecalhoAtual){
-        alert("Carregue a NF primeiro.");
-        scannerDiv.style.display = "none";
-        return;
-      }
-
-      scannerView.innerHTML = "";
-
-      info.innerHTML = (modoScanner === "NF")
-        ? `Aponte para o código de barras da NF (chave <span class="scanner-info-highlight">44 dígitos</span>).<br/>Ao ler, <span class="scanner-info-highlight">fecha automaticamente</span>.`
-        : `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">pausa</span>. Toque na tela para ler o próximo.`;
-
-      try{
-        await pararScannerAtual_();
-
-        if(modoScanner === "EAN"){
-          await iniciarHtml5EAN_Bonito_(scannerView, info);
-        } else {
-          await iniciarHtml5NF44_(scannerView);
-        }
-      }catch(ex){
-        alert("Erro ao iniciar o leitor: " + (ex.message || ex));
-        scannerDiv.style.display = "none";
+      if(modo === "NF"){
+        info.innerHTML = `Aponte para o <span class="scanner-info-highlight">Código de Barras</span> da NF.`;
+        await iniciarHtml5NF_(scannerView);
+      } else {
+        info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, pausa automaticamente.`;
+        await iniciarHtml5EAN_Bonito_(scannerView, info);
       }
     }
 
     async function pararScannerAtual_(){
       try{
         if(html5ScannerNF){
-          await html5ScannerNF.stop().catch(()=>{});
-          await html5ScannerNF.clear().catch(()=>{});
+          await html5ScannerNF.stop();
           html5ScannerNF = null;
         }
-      }catch(e){}
-
-      try{
         if(html5ScannerEAN){
-          await html5ScannerEAN.stop().catch(()=>{});
-          await html5ScannerEAN.clear().catch(()=>{});
+          await html5ScannerEAN.stop();
           html5ScannerEAN = null;
         }
       }catch(e){}
     }
 
-    async function iniciarHtml5NF44_(scannerView){
+    async function iniciarHtml5NF_(scannerView){
       scannerView.innerHTML = `
         <div style="
           width:min(820px, 96vw);
@@ -1012,8 +796,8 @@
         async (decodedText) => {
           if(modoScanner !== "EAN") return;
           
-          // ✅ BLOQUEIO TOTAL - NÃO PROCESSAR NADA SE JÁ ESTIVER BLOQUEADO
-          if(scannerBloqueado) {
+          // ✅ BLOQUEIO TOTAL - NÃO PROCESSAR NADA SE JÁ ESTIVER BLOQUEADO OU PROCESSANDO
+          if(scannerBloqueado || processandoBipe) {
             return; // Sai imediatamente, não processa nada
           }
           
@@ -1040,6 +824,7 @@
           }
 
           // ✅ BLOQUEIA IMEDIATAMENTE ANTES DE QUALQUER PROCESSAMENTO
+          processandoBipe = true;
           scannerBloqueado = true;
           
           // ✅ Atualiza controle de tempo
@@ -1075,6 +860,8 @@
             scannerBloqueado = false;
             scannerView.classList.remove("scanner-paused");
             info.classList.remove("scanner-info-paused");
+          } finally {
+            processandoBipe = false; // ✅ Libera flag de processamento
           }
         },
         (errorMsg) => {
@@ -1138,6 +925,7 @@
       
       // ✅ LIBERA O BLOQUEIO
       scannerBloqueado = false;
+      processandoBipe = false;
       
       const scannerView = document.getElementById("scanner-view");
       const info = document.getElementById("scanner-info");
@@ -1160,6 +948,7 @@
 
     async function adicionarEANManual(){
       if(!cabecalhoAtual){ alert("Carregue a NF primeiro."); return; }
+      if(processandoBipe) return; // ✅ Trava manual
 
       const inp = document.getElementById("ean-manual");
       const ean13 = extrairEAN13DoTexto(inp.value || "");
@@ -1167,13 +956,19 @@
         inp.value = ""; inp.focus(); return;
       }
 
-      await registrarBipeServidor_(ean13);
-      beepOk();
-      inp.value = ""; inp.focus();
+      processandoBipe = true;
+      try {
+        await registrarBipeServidor_(ean13);
+        beepOk();
+        inp.value = ""; inp.focus();
+      } finally {
+        processandoBipe = false;
+      }
     }
 
     async function fecharLeitor(){
       scannerBloqueado = false;
+      processandoBipe = false;
       ultimoEanLido = "";
       ultimoEanTimestamp = 0;
       
