@@ -106,7 +106,7 @@
     .campo-pesquisa{margin-top:14px}
 
     /* =========================================================
-       ✅ SCANNER OVERLAY (mantém leve, mas com UI bonita no EAN)
+       ✅ SCANNER OVERLAY
     ========================================================= */
     #scanner{
       width:100vw;height:100vh;position:fixed;inset:0;z-index:1000;
@@ -126,7 +126,6 @@
     }
     .scanner-close:hover{filter:brightness(1.05)}
 
-    /* card bonito do EAN (voltando pro visual aprovado) */
     #scanner-view{
       width:min(720px, 92vw);
       background:#000;
@@ -187,7 +186,6 @@
       color:#bbf7d0!important;
     }
 
-    /* notificação bonita quando captura EAN */
     .scanner-notification{
       position:absolute;
       top:18px;left:50%;
@@ -238,7 +236,6 @@
     }
     .btn-ajuste:hover{background:#4b5563}
 
-    /* Modal Divergências */
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.85);
       display: none; justify-content: center; align-items: center; z-index: 2000;
@@ -275,7 +272,6 @@
   <div class="container">
     <div class="form-container">
 
-      <!-- LOGIN -->
       <div id="login" class="login-box">
         <h2>Login da Filial</h2>
 
@@ -290,7 +286,6 @@
         </button>
       </div>
 
-      <!-- PRINCIPAL -->
       <div id="principal" class="hidden">
         <div class="logout">
           <button class="btn-secundario" onclick="sair()">
@@ -317,7 +312,6 @@
         <div id="loading" class="loading hidden">⏳ Carregando itens da NF...</div>
         <div id="erro" class="erro"></div>
 
-        <!-- Painel -->
         <div id="painel" class="hidden">
           <div class="cards">
             <div class="card">
@@ -342,7 +336,6 @@
                 </button>
               </div>
 
-              <!-- ✅ MODO TESTE (colar EAN) -->
               <div class="mini-teste">
                 <div class="muted" style="margin-bottom:6px"><strong>Teste sem câmera:</strong> cole um EAN e clique em Adicionar</div>
                 <div id="buffer-ean" class="loading hidden" style="margin-bottom:5px">🔍 Buscando dados no banco...</div>
@@ -383,7 +376,6 @@
     </div>
   </div>
 
-  <!-- Scanner -->
   <div id="scanner">
     <button class="scanner-close" onclick="fecharLeitor(); event.stopPropagation();">
       <i class="fas fa-times"></i> Fechar
@@ -393,7 +385,6 @@
     <div id="scanner-info" class="scanner-info"></div>
   </div>
 
-  <!-- Modal de Divergências -->
   <div id="modal-divergencia" class="modal-overlay">
     <div class="modal-content">
       <div class="modal-header">⚠️ DIVERGÊNCIAS IDENTIFICADAS</div>
@@ -422,7 +413,7 @@
 
     let cabecalhoAtual = null;
     let itensNF = [];
-    let mapaScan = {}; // espelho do SERVIDOR (sync)
+    let mapaScan = {};
     let termoFiltro = "";
 
     // Scanner
@@ -438,7 +429,11 @@
     let syncAtivo = false;
     let ultimoSyncHash = "";
 
-    // ---------------- util fetch ----------------
+    // ✅ anti bip duplo reforçado
+    let eanTravado = false;
+    let ultimoEan = "";
+    let ultimoEanTs = 0;
+
     async function postJSON_(payload){
       const resp = await fetch(URL_API, {
         method: "POST",
@@ -448,7 +443,6 @@
       return await resp.json();
     }
 
-    // ---------------- Login ----------------
     function entrar(){
       const f = document.getElementById("codigo-filial").value.trim();
       const nome = document.getElementById("nome-conferente").value.trim();
@@ -481,7 +475,6 @@
       location.reload();
     }
 
-    // ---------------- Carregar NF ----------------
     async function carregarNF(){
       const chave = document.getElementById("chave").value.trim();
       const erro = document.getElementById("erro");
@@ -525,7 +518,6 @@
       }
     }
 
-    // ---------------- KPIs / Lista ----------------
     function atualizarKPIs(){
       let totalNF = Number(cabecalhoAtual?.totalItensNF || 0);
       if(!totalNF){
@@ -698,9 +690,6 @@
       alert("Zerado no servidor (e o Sync vai atualizar a tela).");
     }
 
-    // =========================================================
-    // ✅ AJUSTE MANUAL (AGORA NO SERVIDOR)
-    // =========================================================
     async function ajusteManualServidor(ean){
       if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso){
         alert("Carregue a NF primeiro.");
@@ -735,7 +724,6 @@
           return;
         }
 
-        // força sync pra refletir (multiusuário)
         await puxarSyncAgora_();
         alert("Ajuste aplicado no servidor!");
       }catch(e){
@@ -743,7 +731,6 @@
       }
     }
 
-    // ---------------- Beep ----------------
     function beepOk(){
       try{
         if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -760,7 +747,6 @@
       try{ if(navigator.vibrate) navigator.vibrate(50); }catch(e){}
     }
 
-    // ---------------- EAN13 helpers ----------------
     function isValidEAN13(ean){
       if(!/^\d{13}$/.test(ean)) return false;
       const digits = ean.split('').map(n => parseInt(n,10));
@@ -793,9 +779,6 @@
       return "";
     }
 
-    // =========================================================
-    // ✅ SYNC TEMPO REAL (servidor é a verdade)
-    // =========================================================
     function iniciarSync_(){
       if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
       syncAtivo = true;
@@ -844,11 +827,6 @@
       }
     }
 
-    // =========================================================
-    // ✅ Scanner
-    // - NF 44: mantém como está (Html5Qrcode, fecha automático)
-    // - EAN: volta UI bonita + pausa/retoma por toque
-    // =========================================================
     async function abrirLeitor(modo){
       const scannerDiv = document.getElementById("scanner");
       const scannerView = document.getElementById("scanner-view");
@@ -857,12 +835,18 @@
       modoScanner = modo;
       scannerDiv.style.display = "flex";
 
-      // limpa notificação
       const notif = scannerDiv.querySelector(".scanner-notification");
       if(notif) notif.remove();
 
       scannerView.classList.remove("scanner-paused");
       info.classList.remove("scanner-info-paused");
+
+      // ✅ reset trava EAN
+      if(modoScanner === "EAN"){
+        eanTravado = false;
+        ultimoEan = "";
+        ultimoEanTs = 0;
+      }
 
       if(modoScanner === "EAN" && !cabecalhoAtual){
         alert("Carregue a NF primeiro.");
@@ -870,7 +854,6 @@
         return;
       }
 
-      // prepara conteúdo
       scannerView.innerHTML = "";
 
       info.innerHTML = (modoScanner === "NF")
@@ -910,7 +893,6 @@
     }
 
     async function iniciarHtml5NF44_(scannerView){
-      // mantém como estava no seu 2.2 (visual “teste perfeito”)
       scannerView.innerHTML = `
         <div style="
           width:min(820px, 96vw);
@@ -985,6 +967,7 @@
       setTimeout(()=>{ if(el.parentNode) el.remove(); }, 2600);
     }
 
+    // ✅ AQUI está o reforço do anti bip duplo (SEM mudar visual)
     async function iniciarHtml5EAN_Bonito_(scannerView, info){
       scannerView.innerHTML = `<div id="html5-ean" style="width:min(720px, 92vw); border-radius:12px; overflow:hidden;"></div>`;
       html5ScannerEAN = new Html5Qrcode("html5-ean");
@@ -995,39 +978,44 @@
         experimentalFeatures: { useBarCodeDetectorIfSupported: true }
       };
 
-      let processando = false;
-
       await html5ScannerEAN.start(
         { facingMode: "environment" },
         config,
         async (decodedText) => {
           if(modoScanner !== "EAN") return;
-          if(processando) return;
 
           const ean13 = extrairEAN13DoTexto(decodedText);
           if(!ean13) return;
 
-          processando = true;
+          // ✅ trava IMEDIATA (antes de qualquer await)
+          if(eanTravado) return;
+
+          const agora = Date.now();
+
+          // ✅ filtro extra: mesmo EAN em janela curta (caso detector dispare duplo)
+          if(ean13 === ultimoEan && (agora - ultimoEanTs) < 900) return;
+
+          eanTravado = true;
+          ultimoEan = ean13;
+          ultimoEanTs = agora;
+
+          // ✅ pausa imediatamente
+          try{ html5ScannerEAN.pause(); }catch(e){}
 
           try{
-            // registra no servidor
             await registrarBipeServidor_(ean13);
 
             beepOk();
             _mostrarNotificacaoEAN_(ean13);
 
-            // pausa e espera toque para continuar
             scannerView.classList.add("scanner-paused");
             info.classList.add("scanner-info-paused");
             info.innerHTML = `
               Scanner <span class="scanner-info-highlight">pausado</span> para evitar bip duplo.<br/>
               Toque na tela para <span class="scanner-info-highlight">continuar</span>.
             `;
-
-            await new Promise(r => setTimeout(r, 80));
-            try{ html5ScannerEAN.pause(); }catch(e){}
-          }finally{
-            processando = false;
+          }catch(e){
+            // se falhar, libera para tentar de novo com toque
           }
         },
         ()=>{}
@@ -1052,9 +1040,7 @@
           if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
           puxarSyncAgora_();
         }
-      }catch(e){
-        // silencioso
-      }
+      }catch(e){}
     }
 
     async function buscarEANNoBanco(ean){
@@ -1077,18 +1063,17 @@
       }
     }
 
-    // ✅ tocar na tela para retomar (só EAN)
+    // ✅ tocar na tela para retomar (libera 1 por 1)
     document.addEventListener("click", async (e)=>{
       const scannerDiv = document.getElementById("scanner");
       if(scannerDiv.style.display !== "flex") return;
       if(modoScanner !== "EAN") return;
-
-      // se clicou no botão fechar, não retoma
       if(e.target.closest(".scanner-close")) return;
 
       try{
         if(html5ScannerEAN){
           html5ScannerEAN.resume();
+          eanTravado = false; // ✅ só libera aqui
           const scannerView = document.getElementById("scanner-view");
           const info = document.getElementById("scanner-info");
           scannerView.classList.remove("scanner-paused");
@@ -1123,7 +1108,6 @@
       modoScanner = "";
     }
 
-    // ---------------- Envio ----------------
     async function enviarConferencia(){
       const erro = document.getElementById("erro");
       const msg = document.getElementById("msg");
@@ -1193,7 +1177,6 @@
       document.getElementById("chave").focus();
     }
 
-    // boot
     window.addEventListener("load", ()=>{
       const f = localStorage.getItem("filial_conf_nf");
       const nome = localStorage.getItem("conferente_conf_nf");
