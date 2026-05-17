@@ -10,7 +10,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.3" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.4" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -256,6 +256,16 @@
     .modal-body { max-height: 300px; overflow-y: auto; margin-bottom: 20px; font-size: 14px; }
     .modal-item { padding: 10px; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; gap:10px; }
     .modal-footer { text-align: center; }
+    .modal-footer .linha-modal{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    .modal-confirmacao-extra .modal-header{color:#fbbf24}
+    .modal-confirmacao-extra .codigo-extra{
+      font-family:monospace;font-size:18px;font-weight:900;letter-spacing:1px;
+      background:#111827;border:1px solid #374151;border-radius:10px;padding:10px;margin:10px 0;text-align:center;
+    }
+    .btn-danger{background:#dc2626}
+    .btn-danger:hover{background:#b91c1c}
+    .btn-warning{background:#ca8a04}
+    .btn-warning:hover{background:#a16207}
 
     footer{
       text-align:center;font-size:13px;color:#ccc;background:#2c2c2c;padding:10px 15px;border-radius:6px;margin:10px;max-width:980px;width:100%;
@@ -270,12 +280,12 @@
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=2.3" class="back-button">
+    <a href="index.html?version=2.4" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=2.3" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=2.4" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -404,12 +414,29 @@
     </div>
   </div>
 
+
+
+  <div id="modal-ean-extra" class="modal-overlay modal-confirmacao-extra">
+    <div class="modal-content">
+      <div class="modal-header">⚠️ CÓDIGO FORA DA NOTA FISCAL</div>
+      <div class="modal-body" id="modal-ean-extra-body"></div>
+      <div class="modal-footer">
+        <p style="font-size: 13px; color: #bbb; margin-bottom: 15px;">Confira se a peça realmente deve entrar nessa conferência.</p>
+        <div class="linha-modal">
+          <button class="btn-danger" id="btn-ean-extra-cancelar" type="button">Bipar novamente</button>
+          <button class="btn-warning" id="btn-ean-extra-confirmar" type="button">Considerar mesmo assim</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.3
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.4
   </footer>
 
   <script>
-    const APP_VERSION = "2.3";
+    const APP_VERSION = "2.4";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -431,6 +458,8 @@
     let audioCtx = null;
 
     let cacheInfoEAN = {};
+    const PREFIXOS_EAN_VALIDOS = ["7909", "7900", "7890", "7891", "7892", "7894", "7895"];
+    let aguardandoConfirmacaoExtra = false;
 
     // ✅ CONTROLE REFORÇADO SCANNER EAN
     let scannerBloqueado = false; // bloqueia totalmente novos scans (UI)
@@ -717,6 +746,14 @@
       const novaQtd = Math.max(0, atual + delta);
       if(novaQtd === atual) return;
 
+      // ✅ Atualização otimista: muda na tela na hora e confirma no servidor depois.
+      if(novaQtd <= 0) delete mapaScan[ean];
+      else mapaScan[ean] = novaQtd;
+
+      atualizarKPIs();
+      const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+      render(montarListaConferencia(jaConferido));
+
       try{
         const data = await postJSON_({
           api:"ajustarBipeManual",
@@ -727,23 +764,21 @@
         });
 
         if(!data || !data.success){
-          alert(data?.message || "Não consegui ajustar no servidor.");
-          return;
+          throw new Error(data?.message || "Não consegui ajustar no servidor.");
         }
-
-        mapaScan[ean] = novaQtd;
-        if(novaQtd <= 0) delete mapaScan[ean];
 
         if(!itensNF.some(i => String(i.ean||"") === ean) && !cacheInfoEAN[ean]){
           await buscarEANNoBanco(ean);
         }
 
-        atualizarKPIs();
-        const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
-        render(montarListaConferencia(jaConferido));
         await puxarSyncAgora_();
       }catch(e){
-        alert("Erro ao ajustar no servidor.");
+        // ✅ Desfaz na tela se o servidor não aceitar o ajuste.
+        if(atual <= 0) delete mapaScan[ean];
+        else mapaScan[ean] = atual;
+        atualizarKPIs();
+        render(montarListaConferencia(jaConferido));
+        alert(e.message || "Erro ao ajustar no servidor.");
       }
     }
 
@@ -779,6 +814,32 @@
       const calc = (10 - (sum % 10)) % 10;
 
       return calc === check;
+    }
+
+    function prefixoEANValido(ean){
+      ean = String(ean || "").trim();
+      return PREFIXOS_EAN_VALIDOS.some(prefixo => ean.startsWith(prefixo));
+    }
+
+    function mostrarErroLeituraEAN_(mensagem){
+      const scannerDiv = document.getElementById("scanner");
+      const scannerView = document.getElementById("scanner-view");
+      const info = document.getElementById("scanner-info");
+      scannerBloqueado = true;
+      scannerView.classList.add("scanner-paused");
+      info.classList.add("scanner-info-paused");
+      info.innerHTML = `
+        ❌ <strong>${mensagem}</strong><br/>
+        Bipe novamente apontando apenas para o código de barras da peça.
+      `;
+      setTimeout(() => {
+        if(modoScanner === "EAN" && scannerDiv.style.display === "flex" && !aguardandoConfirmacaoExtra){
+          scannerBloqueado = false;
+          scannerView.classList.remove("scanner-paused");
+          info.classList.remove("scanner-info-paused");
+          info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">pausa</span>. Toque na tela para ler o próximo.`;
+        }
+      }, 1400);
     }
 
     function extrairEAN13DoTexto(texto){
@@ -1028,6 +1089,16 @@
 
           if(ean13.length !== 13 || !isValidEAN13(ean13)) return;
 
+          if(!prefixoEANValido(ean13)){
+            const agoraBloqueio = Date.now();
+            if(ean13 !== ultimoEanLido || (agoraBloqueio - ultimoEanTimestamp) > 1600){
+              ultimoEanLido = ean13;
+              ultimoEanTimestamp = agoraBloqueio;
+              mostrarErroLeituraEAN_("Código fora do padrão das peças.");
+            }
+            return;
+          }
+
           const agora = Date.now();
           if(ean13 === ultimoEanLido && (agora - ultimoEanTimestamp) < 3000) return;
 
@@ -1054,7 +1125,13 @@
 
           try{
             // mantém await aqui (pode demorar, mas já travou e já bipou)
-            await registrarBipeServidor_(ean13);
+            const registrado = await registrarBipeServidor_(ean13, { confirmarExtra: true });
+            if(!registrado){
+              scannerBloqueado = false;
+              scannerView.classList.remove("scanner-paused");
+              info.classList.remove("scanner-info-paused");
+              info.innerHTML = `Aponte para o <span class="scanner-info-highlight">EAN-13</span> das peças.<br/>Após ler, o scanner <span class="scanner-info-highlight">pausa</span>. Toque na tela para ler o próximo.`;
+            }
           }catch(e){
             console.error("Erro ao registrar bipe:", e);
             // Se falhar, libera tudo (pra você não ficar preso)
@@ -1073,8 +1150,73 @@
       );
     }
 
-    async function registrarBipeServidor_(ean){
-      if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return;
+    async function confirmarEANExtra_(ean, info){
+      aguardandoConfirmacaoExtra = true;
+      scannerBloqueado = true;
+
+      const modal = document.getElementById("modal-ean-extra");
+      const body = document.getElementById("modal-ean-extra-body");
+      const btnCancelar = document.getElementById("btn-ean-extra-cancelar");
+      const btnConfirmar = document.getElementById("btn-ean-extra-confirmar");
+
+      const codigo = info?.codigo || "---";
+      const cor = info?.cor || "---";
+      const tamanho = info?.tamanho || "---";
+
+      body.innerHTML = `
+        <div>O EAN abaixo <strong>não consta na nota fiscal carregada</strong>.</div>
+        <div class="codigo-extra">${ean}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;color:#e5e7eb">
+          <span><strong>Ref/Cor:</strong> ${codigo} / ${cor}</span>
+          <span><strong>Tamanho:</strong> ${tamanho}</span>
+        </div>
+      `;
+
+      modal.style.display = "flex";
+
+      return await new Promise(resolve => {
+        const limpar = (valor) => {
+          modal.style.display = "none";
+          btnCancelar.onclick = null;
+          btnConfirmar.onclick = null;
+          aguardandoConfirmacaoExtra = false;
+          resolve(valor);
+        };
+        btnCancelar.onclick = () => limpar(false);
+        btnConfirmar.onclick = () => limpar(true);
+      });
+    }
+
+    async function prepararEANParaRegistro_(ean, pedirConfirmacaoExtra){
+      ean = String(ean || "").trim();
+      if(!ean || ean.length !== 13 || !isValidEAN13(ean)){
+        throw new Error("EAN inválido.");
+      }
+      if(!prefixoEANValido(ean)){
+        throw new Error("Código fora do padrão das peças. Bipe novamente.");
+      }
+
+      const naNota = itensNF.some(i => String(i.ean || "").trim() === ean);
+      if(naNota) return true;
+
+      if(!cacheInfoEAN[ean]){
+        await buscarEANNoBanco(ean);
+      }
+
+      if(pedirConfirmacaoExtra){
+        const confirmado = await confirmarEANExtra_(ean, cacheInfoEAN[ean]);
+        if(!confirmado) return false;
+      }
+
+      return true;
+    }
+
+    async function registrarBipeServidor_(ean, opcoes = {}){
+      if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso) return false;
+
+      const pedirConfirmacaoExtra = opcoes.confirmarExtra !== false;
+      const podeRegistrar = await prepararEANParaRegistro_(ean, pedirConfirmacaoExtra);
+      if(!podeRegistrar) return false;
 
       const payload = {
         api: "registrarBipeIndividual",
@@ -1087,9 +1229,8 @@
       try{
         const data = await postJSON_(payload);
         if(data && data.success){
-          const naNota = itensNF.some(i => String(i.ean||"") === String(ean));
-          if(!naNota && !cacheInfoEAN[ean]) await buscarEANNoBanco(ean);
           await puxarSyncAgora_();
+          return true;
         }else{
           throw new Error(data?.message || "Falha ao registrar bipe.");
         }
@@ -1100,7 +1241,8 @@
     }
 
     async function buscarEANNoBanco(ean){
-      return buscarEANsNoBanco([ean]);
+      await buscarEANsNoBanco([ean]);
+      return cacheInfoEAN[String(ean || "").trim()] || null;
     }
 
     async function buscarEANsNoBanco(eans){
@@ -1136,6 +1278,7 @@
       if(modoScanner !== "EAN") return;
 
       if(e.target.closest(".scanner-close")) return;
+      if(e.target.closest("#modal-ean-extra")) return;
 
       // ✅ Só libera se estava bloqueado
       if(!scannerBloqueado) return;
@@ -1169,11 +1312,20 @@
       const inp = document.getElementById("ean-manual");
       const ean13 = extrairEAN13DoTexto(inp.value || "");
       if(!ean13){
+        alert("EAN inválido. Verifique o código digitado.");
+        inp.value = ""; inp.focus(); return;
+      }
+      if(!prefixoEANValido(ean13)){
+        alert("Código fora do padrão das peças. Confira o EAN e tente novamente.");
         inp.value = ""; inp.focus(); return;
       }
 
-      await registrarBipeServidor_(ean13);
-      beepOk();
+      try{
+        const registrado = await registrarBipeServidor_(ean13, { confirmarExtra: true });
+        if(registrado) beepOk();
+      }catch(e){
+        alert(e.message || "Erro ao registrar EAN.");
+      }
       inp.value = ""; inp.focus();
     }
 
