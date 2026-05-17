@@ -534,6 +534,22 @@
         if(!data.success) throw new Error(data.message || "Erro ao buscar NF.");
 
         cabecalhoAtual = data.cabecalho;
+
+        if (data.jaConferida) {
+          const statusConf = data.statusConferencia || "CONFERIDA";
+          const continuar = confirm(
+            "⚠️ Esta nota fiscal já consta como conferida no banco.\n\n" +
+            "Status: " + statusConf + "\n\n" +
+            "Deseja abrir mesmo assim para consulta ou nova conferência?"
+          );
+
+          if (!continuar) {
+            erro.textContent = "NF já conferida. Carregamento cancelado.";
+            loading.classList.add("hidden");
+            return;
+          }
+        }
+
         itensNF = data.itens || [];
         mapaScan = {};
 
