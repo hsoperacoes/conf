@@ -10,7 +10,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.2" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.3" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -229,13 +229,20 @@
     .mini-teste input{margin:0}
     .mini-teste button{min-width:160px}
 
+    .grupo-ajuste{display:inline-flex;gap:6px;align-items:center}
     .btn-ajuste{
-      background:#374151;color:#fff;
-      padding:4px 8px;font-size:11px;border-radius:6px;
+      color:#fff;
+      width:32px;height:28px;
+      padding:0;font-size:13px;border-radius:8px;
       cursor:pointer;
-      border:1px solid #4b5563;
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow:0 4px 12px rgba(0,0,0,.25);
     }
-    .btn-ajuste:hover{background:#4b5563}
+    .btn-ajuste-mais{background:#16a34a}
+    .btn-ajuste-mais:hover{background:#15803d}
+    .btn-ajuste-menos{background:#dc2626}
+    .btn-ajuste-menos:hover{background:#b91c1c}
+    .btn-ajuste:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.3)}
 
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.85);
@@ -263,12 +270,12 @@
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=2.2" class="back-button">
+    <a href="index.html?version=2.3" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=2.2" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=2.3" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -398,11 +405,11 @@
   </div>
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.2
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.3
   </footer>
 
   <script>
-    const APP_VERSION = "2.2";
+    const APP_VERSION = "2.3";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -616,9 +623,14 @@
             <strong>EAN: ${i.ean}</strong>
             <div style="display:flex;gap:8px;align-items:center">
               ${i.status ? `<span class="${badgeClass}">${i.status}</span>` : ""}
-              <button class="btn-ajuste" onclick="ajusteManualServidor('${i.ean}')">
-                <i class="fas fa-edit"></i> Ajustar
-              </button>
+              <span class="grupo-ajuste" title="Ajuste manual">
+                <button class="btn-ajuste btn-ajuste-menos" onclick="ajustarQtdServidor('${i.ean}', -1)" ${Number(i.qtdScan || 0) <= 0 ? "disabled" : ""}>
+                  <i class="fas fa-minus"></i>
+                </button>
+                <button class="btn-ajuste btn-ajuste-mais" onclick="ajustarQtdServidor('${i.ean}', 1)">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </span>
             </div>
           </div>
           <div class="row muted">
@@ -691,29 +703,26 @@
       alert("Zerado no servidor (e o Sync vai atualizar a tela).");
     }
 
-    async function ajusteManualServidor(ean){
+    async function ajustarQtdServidor(ean, delta){
       if(!cabecalhoAtual || !cabecalhoAtual.chaveAcesso){
         alert("Carregue a NF primeiro.");
         return;
       }
 
-      const atual = Number(mapaScan[ean] || 0);
-      const nova = prompt(`Ajustar quantidade para o EAN ${ean}\n\nAtual no servidor: ${atual}\n\nDigite a NOVA quantidade (0 para excluir):`, String(atual));
-      if(nova === null) return;
+      ean = String(ean || "").trim();
+      delta = Number(delta || 0);
+      if(!ean || !delta) return;
 
-      const n = parseInt(String(nova).trim(), 10);
-      if(isNaN(n) || n < 0){
-        alert("Valor inválido.");
-        return;
-      }
+      const atual = Number(mapaScan[ean] || 0);
+      const novaQtd = Math.max(0, atual + delta);
+      if(novaQtd === atual) return;
 
       try{
         const data = await postJSON_({
           api:"ajustarBipeManual",
           chaveAcesso: String(cabecalhoAtual.chaveAcesso || "").trim(),
-          ean: String(ean||"").trim(),
-          novaQtd: n,
-          senha: "1",
+          ean,
+          novaQtd,
           conferente: conferenteAtual || "Usuário"
         });
 
@@ -722,8 +731,17 @@
           return;
         }
 
+        mapaScan[ean] = novaQtd;
+        if(novaQtd <= 0) delete mapaScan[ean];
+
+        if(!itensNF.some(i => String(i.ean||"") === ean) && !cacheInfoEAN[ean]){
+          await buscarEANNoBanco(ean);
+        }
+
+        atualizarKPIs();
+        const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+        render(montarListaConferencia(jaConferido));
         await puxarSyncAgora_();
-        alert("Ajuste aplicado no servidor!");
       }catch(e){
         alert("Erro ao ajustar no servidor.");
       }
@@ -808,6 +826,13 @@
       return s;
     }
 
+    async function garantirInfoExtras_(){
+      const eansNaNota = new Set(itensNF.map(i => String(i.ean || "").trim()).filter(Boolean));
+      const pendentes = Object.keys(mapaScan || {}).filter(ean => !eansNaNota.has(ean) && !cacheInfoEAN[ean]);
+      if(!pendentes.length) return;
+      await buscarEANsNoBanco(pendentes);
+    }
+
     async function puxarSyncAgora_(){
       if(!syncAtivo || !cabecalhoAtual) return;
       const chave = String(cabecalhoAtual.chaveAcesso || "").trim();
@@ -824,6 +849,7 @@
         if(hash !== ultimoSyncHash){
           ultimoSyncHash = hash;
           mapaScan = bipes;
+          await garantirInfoExtras_();
           atualizarKPIs();
           const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
           render(montarListaConferencia(jaConferido));
@@ -1062,29 +1088,44 @@
         const data = await postJSON_(payload);
         if(data && data.success){
           const naNota = itensNF.some(i => String(i.ean||"") === String(ean));
-          if(!naNota && !cacheInfoEAN[ean]) buscarEANNoBanco(ean);
-          puxarSyncAgora_();
+          if(!naNota && !cacheInfoEAN[ean]) await buscarEANNoBanco(ean);
+          await puxarSyncAgora_();
+        }else{
+          throw new Error(data?.message || "Falha ao registrar bipe.");
         }
-      }catch(e){}
+      }catch(e){
+        console.error("Falha ao registrar bipe no servidor", e);
+        throw e;
+      }
     }
 
     async function buscarEANNoBanco(ean){
+      return buscarEANsNoBanco([ean]);
+    }
+
+    async function buscarEANsNoBanco(eans){
+      const listaEans = [...new Set((eans || []).map(e => String(e || "").trim()).filter(Boolean))];
+      if(!listaEans.length) return;
+
       const buffer = document.getElementById("buffer-ean");
-      buffer.classList.remove("hidden");
+      if(buffer) buffer.classList.remove("hidden");
       try{
         const data = await postJSON_({
           api:"buscarInfoEAN",
           filial: filialAtual,
-          eans:[ean]
+          eans: listaEans
         });
-        if(data.success && data.itens && data.itens[ean]){
-          cacheInfoEAN[ean] = data.itens[ean];
+        if(data.success && data.itens){
+          listaEans.forEach(ean => {
+            if(data.itens[ean]) cacheInfoEAN[ean] = data.itens[ean];
+          });
           const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
           render(montarListaConferencia(jaConferido));
         }
       }catch(e){
+        console.error("Falha ao buscar EAN no banco", e);
       }finally{
-        buffer.classList.add("hidden");
+        if(buffer) buffer.classList.add("hidden");
       }
     }
 
