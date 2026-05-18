@@ -10,7 +10,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.5" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.6" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -851,17 +851,100 @@
       }
     }
 
+  
+    /* =========================================================
+       AJUSTES V3.6 - OK OCULTO EM TEMPO REAL / LISTA SEM VÃO
+    ========================================================= */
+    #painel{
+      grid-template-columns:240px 1fr !important;
+      gap:12px !important;
+      padding:12px 14px !important;
+      align-items:start !important;
+    }
+
+    .cards{
+      gap:12px !important;
+    }
+
+    .campo-pesquisa{
+      grid-column:2 !important;
+      margin:0 !important;
+      padding:14px 16px 8px !important;
+      border-radius:20px 20px 0 0 !important;
+      box-shadow:none !important;
+    }
+
+    .campo-pesquisa label{
+      margin-top:0 !important;
+      margin-bottom:6px !important;
+    }
+
+    #painel > .titulo{
+      grid-column:2 !important;
+      margin:0 !important;
+      padding:12px 16px !important;
+      border-radius:0 !important;
+      border-top:none !important;
+      box-shadow:none !important;
+    }
+
+    .lista{
+      grid-column:2 !important;
+      margin:0 !important;
+      margin-top:0 !important;
+      border-radius:0 0 20px 20px !important;
+      max-height:calc(100vh - 270px) !important;
+      min-height:0 !important;
+      box-shadow:none !important;
+    }
+
+    .item-main-code{
+      font-size:17px !important;
+      font-weight:800 !important;
+      color:#111827 !important;
+      letter-spacing:.2px !important;
+      gap:10px !important;
+    }
+
+    .item-main-code span{
+      background:#f8fafc;
+      border:1px solid #e2e8f0;
+      padding:5px 9px;
+      border-radius:10px;
+      font-weight:800;
+    }
+
+    .item-info-left{
+      gap:10px !important;
+    }
+
+    .item-info-line{
+      margin-top:2px;
+    }
+
+    @media(max-width:1100px){
+      #painel{
+        grid-template-columns:1fr !important;
+      }
+      .cards,.campo-pesquisa,#painel > .titulo,.lista{
+        grid-column:1 !important;
+      }
+      .lista{
+        max-height:none !important;
+      }
+    }
+
   </style>
 </head>
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=3.5" class="back-button">
+    <a href="index.html?version=3.6" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=3.5" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=3.6" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -1038,11 +1121,11 @@
 
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.5
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.6
   </footer>
 
   <script>
-    const APP_VERSION = "3.5";
+    const APP_VERSION = "3.6";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -1256,8 +1339,21 @@
 
 
     function aplicarFiltroDivergencias_(lista){
-      if(!exibindoSomenteDivergencias) return lista;
-      return (lista || []).filter(i => Number(i.diff || 0) !== 0);
+      const base = (lista || []).filter(i => {
+        const diff = Number(i.diff || 0);
+        const qtdScan = Number(i.qtdScan || 0);
+
+        // Oculta automaticamente quando a quantidade bipada fica exatamente igual à NF.
+        // Se depois bipar a mais, diff fica positivo e o item volta para a lista.
+        if(diff === 0 && qtdScan > 0) return false;
+
+        return true;
+      });
+
+      if(!exibindoSomenteDivergencias) return base;
+
+      // Depois de clicar em Fazer Conferência, mostra somente itens com diferença.
+      return base.filter(i => Number(i.diff || 0) !== 0);
     }
 
     function renderizarListaAtual_(jaConferido){
@@ -1276,7 +1372,7 @@
         container.innerHTML = `
           <div class="item">
             <div class="muted" style="font-weight:800;text-align:center;padding:12px">
-              Nenhum item com diferença no momento.
+              Nenhum item pendente ou divergente no momento.
             </div>
           </div>
         `;
@@ -1334,7 +1430,6 @@
           <div class="item-info-line">
             <div class="item-info-left">
               <span>NF: ${i.qtdNF}</span>
-              <span>Conferido: ${i.qtdScan}</span>
             </div>
           </div>
         `;
