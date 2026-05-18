@@ -10,7 +10,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.1" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.2" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -571,12 +571,12 @@
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=3.1" class="back-button">
+    <a href="index.html?version=3.2" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=3.1" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=3.2" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -723,11 +723,11 @@
 
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.1
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.2
   </footer>
 
   <script>
-    const APP_VERSION = "3.1";
+    const APP_VERSION = "3.2";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -1317,58 +1317,66 @@
     }
 
     async function iniciarHtml5NF44_(scannerView){
-      // Leitor da chave da NF com a mesma configuração base do modelo funcional.
-      // Mantém o enquadro compacto, mas prioriza leitura rápida do CODE_128.
+      // Leitor NF 44 corrigido:
+      // - sem altura interna fixa gigante
+      // - sem object-fit cover que corta o código
+      // - qrbox horizontal para CODE_128
       scannerView.innerHTML = `
         <div style="
           width:100%;
+          background:#0b0b0c;
+          border-radius:16px;
+          padding:10px;
           display:flex;
           flex-direction:column;
           gap:10px;
         ">
           <div style="
-            font-size:14px;
-            font-weight:900;
-            color:#e5e7eb;
             display:flex;
             align-items:center;
+            justify-content:space-between;
             gap:8px;
-            padding:2px 2px 4px;
+            color:#e5e7eb;
+            font-weight:900;
+            font-size:14px;
           ">
-            <i class="fas fa-barcode"></i>
-            Leitor de Código da NF
+            <span><i class="fas fa-barcode"></i> Leitor de Código da NF</span>
+            <span style="font-size:12px;color:#94a3b8">44 dígitos</span>
           </div>
 
           <div style="
             position:relative;
             width:100%;
-            height:min(520px, 62vh);
-            min-height:330px;
             border-radius:14px;
             overflow:hidden;
             background:#000;
-            border:1px solid rgba(255,255,255,.16);
+            border:1px solid rgba(255,255,255,.14);
           ">
-            <div id="html5-nf44" style="width:100%;height:100%;background:#000;"></div>
+            <div id="html5-nf44" style="
+              width:100%;
+              min-height:280px;
+              background:#000;
+              border-radius:12px;
+              overflow:hidden;
+            "></div>
 
             <div style="
               position:absolute;
               left:50%;
-              top:56%;
+              top:50%;
               transform:translate(-50%,-50%);
               width:92%;
-              height:22%;
+              height:95px;
               border:2px solid rgba(187,247,208,.72);
               border-radius:14px;
               pointer-events:none;
-              box-shadow:0 0 0 999px rgba(0,0,0,.10) inset;
             "></div>
 
             <div style="
               position:absolute;
               left:8%;
               right:8%;
-              top:56%;
+              top:50%;
               height:2px;
               background:linear-gradient(90deg,transparent,rgba(187,247,208,.95),transparent);
               box-shadow:0 0 18px rgba(187,247,208,.45);
@@ -1385,7 +1393,7 @@
             border-radius:12px;
             line-height:1.45;
           ">
-            Aponte para o <b>código de barras da NF</b>. Alinhe a chave dentro do retângulo verde.
+            Aponte para o <b>código de barras da NF</b>. Deixe o código inteiro visível dentro do retângulo.
           </div>
         </div>
       `;
@@ -1403,18 +1411,9 @@
         }
       }catch(e){}
 
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
       const config = {
-        fps: isIOS ? 20 : 30,
-        qrbox: (view) => {
-          const w = Math.min(view.width || 520, 520);
-          const h = Math.min(view.height || 820, 820);
-          const boxW = Math.floor(w * 0.92);
-          const boxH = Math.floor(h * 0.22);
-          return { width: boxW, height: boxH };
-        },
-        aspectRatio: isIOS ? 1.0 : 0.75,
+        fps: 30,
+        qrbox: { width: 330, height: 110 },
         disableFlip: true,
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         rememberLastUsedCamera: true,
@@ -1434,7 +1433,7 @@
           if(!chave){
             const info = document.getElementById("scanner-info");
             if(info){
-              info.innerHTML = `Lendo... detectei algo, procurando a chave de <span class="scanner-info-highlight">44 dígitos</span>.`;
+              info.innerHTML = `Lendo... procurando a chave de <span class="scanner-info-highlight">44 dígitos</span>.`;
             }
             return;
           }
@@ -1461,15 +1460,25 @@
         }
       );
 
-      // Igual ao modelo funcional: NÃO corta o vídeo.
-      // CODE_128 precisa aparecer inteiro, por isso usamos contain e não cover.
+      // Ajuste pós-render: remove cortes causados pelo html5-qrcode no mobile.
       setTimeout(() => {
         const root = document.getElementById("html5-nf44");
         if(root){
           root.style.width = "100%";
-          root.style.height = "100%";
+          root.style.minHeight = "280px";
+          root.style.height = "auto";
           root.style.overflow = "hidden";
           root.style.background = "#000";
+        }
+
+        const scanRegion = document.querySelector("#html5-nf44__scan_region");
+        if(scanRegion){
+          scanRegion.style.width = "100%";
+          scanRegion.style.height = "auto";
+          scanRegion.style.minHeight = "280px";
+          scanRegion.style.display = "block";
+          scanRegion.style.overflow = "hidden";
+          scanRegion.style.background = "#000";
         }
 
         const video = document.querySelector("#html5-nf44 video");
@@ -1478,25 +1487,14 @@
         [video, canvas].forEach(el => {
           if(el){
             el.style.width = "100%";
-            el.style.height = "100%";
+            el.style.height = "auto";
+            el.style.maxHeight = "390px";
             el.style.objectFit = "contain";
             el.style.background = "#000";
             el.style.borderRadius = "12px";
-            el.style.maxWidth = "none";
-            el.style.maxHeight = "none";
+            el.style.display = "block";
           }
         });
-
-        const scanRegion = document.querySelector("#html5-nf44__scan_region");
-        if(scanRegion){
-          scanRegion.style.width = "100%";
-          scanRegion.style.height = "100%";
-          scanRegion.style.display = "flex";
-          scanRegion.style.alignItems = "center";
-          scanRegion.style.justifyContent = "center";
-          scanRegion.style.overflow = "hidden";
-          scanRegion.style.background = "#000";
-        }
       }, 700);
     }
 
