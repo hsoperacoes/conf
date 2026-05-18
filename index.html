@@ -10,7 +10,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.6" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.7" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -934,17 +934,80 @@
       }
     }
 
+  
+    /* =========================================================
+       AJUSTE V3.7 - REMOVE VÃO ENTRE BUSCA E RESULTADO
+       A coluna da esquerda não pode definir a altura da linha do grid.
+    ========================================================= */
+    #painel{
+      display:grid !important;
+      grid-template-columns:240px minmax(0,1fr) !important;
+      grid-template-rows:auto auto minmax(0,1fr) !important;
+      gap:0 12px !important;
+      align-items:start !important;
+      padding:12px 14px !important;
+    }
+
+    #painel .cards{
+      grid-column:1 !important;
+      grid-row:1 / span 3 !important;
+      align-self:start !important;
+      margin:0 !important;
+      gap:12px !important;
+    }
+
+    #painel .campo-pesquisa{
+      grid-column:2 !important;
+      grid-row:1 !important;
+      margin:0 !important;
+      align-self:start !important;
+      border-radius:20px 20px 0 0 !important;
+    }
+
+    #painel > .titulo{
+      grid-column:2 !important;
+      grid-row:2 !important;
+      margin:0 !important;
+      align-self:start !important;
+      border-radius:0 !important;
+    }
+
+    #painel .lista{
+      grid-column:2 !important;
+      grid-row:3 !important;
+      margin:0 !important;
+      align-self:start !important;
+      border-radius:0 0 20px 20px !important;
+      max-height:calc(100vh - 245px) !important;
+    }
+
+    @media(max-width:1100px){
+      #painel{
+        grid-template-columns:1fr !important;
+        grid-template-rows:auto !important;
+        gap:12px !important;
+      }
+
+      #painel .cards,
+      #painel .campo-pesquisa,
+      #painel > .titulo,
+      #painel .lista{
+        grid-column:1 !important;
+        grid-row:auto !important;
+      }
+    }
+
   </style>
 </head>
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=3.6" class="back-button">
+    <a href="index.html?version=3.7" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=3.6" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=3.7" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -1121,11 +1184,11 @@
 
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.6
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.7
   </footer>
 
   <script>
-    const APP_VERSION = "3.6";
+    const APP_VERSION = "3.7";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
