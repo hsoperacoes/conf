@@ -10,7 +10,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.2" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.3" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -566,17 +566,190 @@
       .linha-botoes{flex-direction:column}
     }
 
+  
+    /* =========================================================
+       LEITOR NF 44 FUNCIONAL - FULLSCREEN SEPARADO
+       Baseado no modelo aprovado pelo usuário
+    ========================================================= */
+    #scannerNF44Overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: none;
+      background: rgba(0,0,0,.92);
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      backdrop-filter: blur(2px);
+    }
+
+    .scan-nf-card {
+      width: min(520px, 96vw);
+      height: min(820px, 92vh);
+      background: #0b0b0c;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 18px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.55);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .scan-nf-top {
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      background: linear-gradient(180deg, rgba(20,20,22,.95), rgba(10,10,12,.95));
+    }
+
+    .scan-nf-title {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-weight: 900;
+      color: #e5e7eb;
+      font-size: 14px;
+      letter-spacing:.2px;
+    }
+
+    .scan-nf-title i { color: #bbf7d0; }
+
+    .scan-nf-actions {
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .scan-nf-btn {
+      width: auto !important;
+      padding: 10px 12px !important;
+      margin-top: 0 !important;
+      border-radius: 12px !important;
+      background: rgba(2,6,23,.88) !important;
+      border: 1px solid rgba(255,255,255,.14) !important;
+      color: #e5e7eb !important;
+      font-weight: 800 !important;
+      font-size: 12px !important;
+      cursor: pointer;
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      min-height: 44px;
+    }
+
+    .scan-nf-btn:hover { filter: brightness(1.07); }
+
+    .scan-nf-btn.primary {
+      background: rgba(103,58,183,.92) !important;
+      border-color: rgba(103,58,183,.55) !important;
+    }
+
+    .scan-nf-body {
+      position: relative;
+      flex: 1;
+      padding: 10px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height: 0;
+    }
+
+    .scan-nf-frame {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid rgba(103,58,183,.6);
+      box-shadow: 0 14px 40px rgba(103,58,183,.12);
+      background: #000;
+    }
+
+    #html5-reader-nf44 {
+      width: 100%;
+      height: 100%;
+    }
+
+    #html5-reader-nf44 video,
+    #html5-reader-nf44 canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain !important;
+      background: #000;
+      -webkit-transform: scaleX(1);
+      transform: scaleX(1);
+    }
+
+    .scan-nf-guide {
+      position: absolute;
+      left: 50%;
+      top: 56%;
+      transform: translate(-50%, -50%);
+      width: min(92%, 520px);
+      height: 22%;
+      border: 2px solid rgba(187,247,208,.55);
+      border-radius: 14px;
+      box-shadow: 0 0 0 2000px rgba(0,0,0,.10) inset;
+      pointer-events: none;
+    }
+
+    .scan-nf-line {
+      position:absolute;
+      left: 8%;
+      right: 8%;
+      top: 50%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(187,247,208,.95), transparent);
+      box-shadow: 0 0 18px rgba(187,247,208,.35);
+      pointer-events: none;
+      animation: sweepNF44 1.6s linear infinite;
+    }
+
+    @keyframes sweepNF44 {
+      0% { transform: translateY(-26px); opacity: .35; }
+      50% { transform: translateY(0); opacity: 1; }
+      100% { transform: translateY(26px); opacity: .35; }
+    }
+
+    .scan-nf-status {
+      padding: 10px 12px;
+      border-top: 1px solid rgba(255,255,255,.10);
+      background: rgba(10,10,12,.95);
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.4;
+    }
+
+    .scan-nf-status b { color:#bbf7d0; }
+
+    @media (max-width:700px){
+      .scan-nf-card{
+        width:96vw;
+        height:88vh;
+      }
+      .scan-nf-actions{
+        gap:5px;
+      }
+      .scan-nf-btn{
+        padding:9px 10px!important;
+        font-size:11px!important;
+      }
+    }
+
   </style>
 </head>
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=3.2" class="back-button">
+    <a href="index.html?version=3.3" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=3.2" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=3.3" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -694,6 +867,36 @@
     <div id="scanner-info" class="scanner-info"></div>
   </div>
 
+
+  <!-- LEITOR NF 44 FUNCIONAL FULLSCREEN -->
+  <div id="scannerNF44Overlay">
+    <div class="scan-nf-card">
+      <div class="scan-nf-top">
+        <div class="scan-nf-title">
+          <i class="fas fa-barcode"></i>
+          Leitor de Código (Chave 44)
+        </div>
+        <div class="scan-nf-actions">
+          <button class="scan-nf-btn" id="btn-nf44-zoom-out" title="Diminuir zoom"><i class="fas fa-search-minus"></i></button>
+          <button class="scan-nf-btn" id="btn-nf44-zoom-in" title="Aumentar zoom"><i class="fas fa-search-plus"></i></button>
+          <button class="scan-nf-btn" id="btn-nf44-torch" title="Lanterna"><i class="fas fa-bolt"></i></button>
+          <button class="scan-nf-btn primary" id="btn-nf44-fechar"><i class="fas fa-times"></i> Fechar</button>
+        </div>
+      </div>
+
+      <div class="scan-nf-body">
+        <div class="scan-nf-frame">
+          <div id="html5-reader-nf44"></div>
+          <div class="scan-nf-guide"></div>
+          <div class="scan-nf-line"></div>
+        </div>
+      </div>
+
+      <div class="scan-nf-status" id="scanNF44Status">Status: <b>pronto</b></div>
+    </div>
+  </div>
+
+
   <div id="modal-divergencia" class="modal-overlay">
     <div class="modal-content">
       <div class="modal-header">⚠️ DIVERGÊNCIAS IDENTIFICADAS</div>
@@ -723,11 +926,11 @@
 
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.2
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.3
   </footer>
 
   <script>
-    const APP_VERSION = "3.2";
+    const APP_VERSION = "3.3";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -1253,6 +1456,11 @@
     }
 
     async function abrirLeitor(modo){
+      if(modo === "NF"){
+        await abrirScannerNF44Completo();
+        return;
+      }
+
       const scannerDiv = document.getElementById("scanner");
       const scannerView = document.getElementById("scanner-view");
       const info = document.getElementById("scanner-info");
@@ -1876,7 +2084,251 @@
       document.getElementById("chave").focus();
     }
 
+
+    /* =========================================================
+       Scanner NF44 separado - copiado do modelo funcional e adaptado
+    ========================================================= */
+    let html5ScannerNF44Full = null;
+    let scannerNF44Open = false;
+    let scannerNF44Travado = false;
+
+    let nf44Track = null;
+    let nf44ZoomLevel = 1;
+    let nf44ZoomMin = 1;
+    let nf44ZoomMax = 1;
+    let nf44TorchOn = false;
+    let nf44TorchSupported = false;
+    let nf44ZoomSupported = false;
+
+    const isIOS_NF44 = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    function statusNF44_(html){
+      const el = document.getElementById("scanNF44Status");
+      if(el) el.innerHTML = "Status: " + html;
+    }
+
+    async function applyZoomNF44_(z){
+      if(!nf44Track || !nf44ZoomSupported) return;
+      try{
+        await nf44Track.applyConstraints({ advanced: [{ zoom: z }] });
+        nf44ZoomLevel = z;
+        statusNF44_(`<b>lendo…</b><br/>Zoom: ${nf44ZoomLevel.toFixed(1)}x`);
+      }catch(e){}
+    }
+
+    async function toggleTorchNF44_(){
+      if(!nf44Track || !nf44TorchSupported) return;
+      try{
+        nf44TorchOn = !nf44TorchOn;
+        await nf44Track.applyConstraints({ advanced: [{ torch: nf44TorchOn }] });
+        statusNF44_(`<b>lendo…</b><br/>Lanterna: ${nf44TorchOn ? "ON" : "OFF"}`);
+      }catch(e){}
+    }
+
+    async function fecharScannerNF44Completo(){
+      scannerNF44Open = false;
+      scannerNF44Travado = false;
+      nf44TorchOn = false;
+      nf44Track = null;
+      nf44ZoomSupported = false;
+      nf44TorchSupported = false;
+
+      const ov = document.getElementById("scannerNF44Overlay");
+      if(ov) ov.style.display = "none";
+      document.body.style.overflow = "";
+
+      try{
+        if(html5ScannerNF44Full){
+          await html5ScannerNF44Full.stop().catch(()=>{});
+          await html5ScannerNF44Full.clear().catch(()=>{});
+          html5ScannerNF44Full = null;
+        }
+
+        const video = document.querySelector("#html5-reader-nf44 video");
+        if(video && video.srcObject){
+          const stream = video.srcObject;
+          const tracks = stream.getTracks();
+          tracks.forEach(track => track.stop());
+          video.srcObject = null;
+        }
+      }catch(e){}
+
+      statusNF44_("<b>fechado</b>");
+    }
+
+    async function abrirScannerNF44Completo(){
+      const chaveInput = document.getElementById("chave");
+
+      if(chaveInput && chaveInput.value.trim() !== ""){
+        if(!confirm("O campo já contém uma chave. Deseja limpar e escanear uma nova?")){
+          return;
+        }
+        chaveInput.value = "";
+      }
+
+      const ov = document.getElementById("scannerNF44Overlay");
+      if(!ov){
+        alert("Overlay do leitor NF não encontrado.");
+        return;
+      }
+
+      ov.style.display = "flex";
+      document.body.style.overflow = "hidden";
+
+      scannerNF44Open = true;
+      scannerNF44Travado = false;
+      statusNF44_("<b>abrindo câmera…</b>");
+
+      try{
+        if(html5ScannerNF44Full){
+          await html5ScannerNF44Full.stop().catch(()=>{});
+          await html5ScannerNF44Full.clear().catch(()=>{});
+          html5ScannerNF44Full = null;
+        }
+      }catch(e){}
+
+      html5ScannerNF44Full = new Html5Qrcode("html5-reader-nf44");
+
+      let formats = undefined;
+      try{
+        if(window.Html5QrcodeSupportedFormats){
+          formats = [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.EAN_13
+          ];
+        }
+      }catch(e){}
+
+      const config = {
+        fps: isIOS_NF44 ? 20 : 30,
+        qrbox: (view) => {
+          const w = Math.min(view.width, 520);
+          const h = Math.min(view.height, 820);
+          const boxW = Math.floor(w * 0.92);
+          const boxH = Math.floor(h * 0.22);
+          return { width: boxW, height: boxH };
+        },
+        aspectRatio: isIOS_NF44 ? 1.0 : 0.75,
+        disableFlip: true,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+        rememberLastUsedCamera: true,
+        ...(formats ? { formatsToSupport: formats } : {})
+      };
+
+      statusNF44_("<b>procurando o código…</b><br/>Aproxime e alinhe no retângulo.");
+
+      try{
+        await html5ScannerNF44Full.start(
+          { facingMode: "environment" },
+          config,
+          async (decodedText) => {
+            if(!scannerNF44Open) return;
+            if(scannerNF44Travado) return;
+
+            const chave = extrairChave44(decodedText);
+            if(!chave){
+              statusNF44_("<b>lendo…</b><br/>Detectei algo, procurando 44 dígitos…");
+              return;
+            }
+
+            scannerNF44Travado = true;
+            document.getElementById("chave").value = chave;
+            statusNF44_("<b>capturado!</b><br/>Chave 44 preenchida ✅");
+            beepOk();
+
+            await new Promise(r => setTimeout(r, 200));
+            await fecharScannerNF44Completo();
+          },
+          (error) => {
+            if(error && error.name === "NotAllowedError"){
+              statusNF44_("<b style='color:#ff6b6b'>Permissão negada</b><br/>Permita o acesso à câmera");
+              setTimeout(() => fecharScannerNF44Completo(), 3000);
+            }
+          }
+        );
+
+        setTimeout(async ()=>{
+          try{
+            const video = document.querySelector("#html5-reader-nf44 video");
+            const stream = video && video.srcObject;
+            if(!stream) return;
+
+            const t = stream.getVideoTracks && stream.getVideoTracks()[0];
+            if(!t) return;
+
+            nf44Track = t;
+            const caps = nf44Track.getCapabilities ? nf44Track.getCapabilities() : {};
+
+            if(caps.zoom){
+              nf44ZoomSupported = true;
+              nf44ZoomMin = caps.zoom.min;
+              nf44ZoomMax = caps.zoom.max;
+              nf44ZoomLevel = Math.min(Math.max(1.5, nf44ZoomMin), nf44ZoomMax);
+              await applyZoomNF44_(nf44ZoomLevel);
+            }
+
+            if(caps.torch !== undefined){
+              nf44TorchSupported = true;
+            }
+          }catch(e){}
+        }, 800);
+
+      }catch(error){
+        console.error("Erro ao iniciar scanner NF44:", error);
+
+        if(error.name === "NotAllowedError" || String(error.message || "").includes("Permission")){
+          statusNF44_("<b style='color:#ff6b6b'>❌ Permissão necessária</b><br/>Permita o acesso à câmera para usar o scanner");
+          setTimeout(() => fecharScannerNF44Completo(), 3000);
+        }else{
+          statusNF44_("<b style='color:#ff6b6b'>Erro na câmera</b><br/>" + (error.message || "Tente novamente"));
+          setTimeout(() => fecharScannerNF44Completo(), 2000);
+        }
+      }
+    }
+
+    function configurarBotoesScannerNF44(){
+      const fechar = document.getElementById("btn-nf44-fechar");
+      const zoomIn = document.getElementById("btn-nf44-zoom-in");
+      const zoomOut = document.getElementById("btn-nf44-zoom-out");
+      const torch = document.getElementById("btn-nf44-torch");
+
+      if(fechar) fechar.onclick = fecharScannerNF44Completo;
+
+      if(zoomIn){
+        zoomIn.onclick = async function(){
+          if(!nf44ZoomSupported){
+            statusNF44_("<b>zoom não suportado</b>");
+            return;
+          }
+          await applyZoomNF44_(Math.min(nf44ZoomMax, nf44ZoomLevel + 0.5));
+        };
+      }
+
+      if(zoomOut){
+        zoomOut.onclick = async function(){
+          if(!nf44ZoomSupported){
+            statusNF44_("<b>zoom não suportado</b>");
+            return;
+          }
+          await applyZoomNF44_(Math.max(nf44ZoomMin, nf44ZoomLevel - 0.5));
+        };
+      }
+
+      if(torch){
+        torch.onclick = async function(){
+          if(!nf44TorchSupported){
+            statusNF44_("<b>lanterna não suportada</b>");
+            return;
+          }
+          await toggleTorchNF44_();
+        };
+      }
+    }
+
+
     window.addEventListener("load", ()=>{
+      configurarBotoesScannerNF44();
       const f = localStorage.getItem("filial_conf_nf");
       const nome = localStorage.getItem("conferente_conf_nf");
 
@@ -1893,6 +2345,12 @@
         termoFiltro = e.target.value.trim();
         const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
         renderizarListaAtual_(jaConferido);
+      });
+
+      document.addEventListener("keydown", function(e){
+        if(e.key === "Escape" && scannerNF44Open){
+          fecharScannerNF44Completo();
+        }
       });
 
       document.getElementById("ean-manual").addEventListener("keydown", (e)=>{
