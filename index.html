@@ -10,7 +10,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=2.9" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.0" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -571,12 +571,12 @@
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=2.9" class="back-button">
+    <a href="index.html?version=3.0" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=2.9" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=3.0" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -723,11 +723,11 @@
 
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 2.9
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.0
   </footer>
 
   <script>
-    const APP_VERSION = "2.9";
+    const APP_VERSION = "3.0";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -1317,62 +1317,60 @@
     }
 
     async function iniciarHtml5NF44_(scannerView){
+      // Leitor de chave NF compacto, sem área preta gigante no celular.
       scannerView.innerHTML = `
         <div style="
-          width:min(720px, 92vw);
-          height:min(760px, 82vh);
-          background:#0b0b0c;
-          border:2px solid #2563eb;
-          border-radius:18px;
-          padding:12px;
-          box-shadow:0 18px 70px rgba(37,99,235,.25);
+          width:100%;
           display:flex;
           flex-direction:column;
           gap:10px;
         ">
           <div style="
+            font-size:14px;
+            font-weight:900;
+            color:#e5e7eb;
             display:flex;
             align-items:center;
-            justify-content:space-between;
-            gap:10px;
-            color:#e5e7eb;
-            font-weight:900;
-            font-size:14px;
+            gap:8px;
+            padding:2px 2px 4px;
           ">
-            <span><i class="fas fa-barcode"></i> Leitor de Código da NF</span>
-            <span style="font-size:12px;color:#94a3b8">Chave 44 dígitos</span>
+            <i class="fas fa-barcode"></i>
+            Leitor de Código da NF
           </div>
 
           <div style="
             position:relative;
-            flex:1;
-            min-height:380px;
-            border-radius:16px;
+            width:100%;
+            height:min(390px, 54vh);
+            min-height:260px;
+            border-radius:14px;
             overflow:hidden;
             background:#000;
-            border:1px solid rgba(255,255,255,.14);
+            border:1px solid rgba(255,255,255,.16);
           ">
-            <div id="html5-nf44" style="width:100%;height:100%;"></div>
+            <div id="html5-nf44" style="width:100%;height:100%;background:#000;"></div>
+
             <div style="
               position:absolute;
               left:50%;
-              top:56%;
+              top:50%;
               transform:translate(-50%,-50%);
               width:92%;
-              height:22%;
-              border:2px solid rgba(187,247,208,.65);
+              height:28%;
+              border:2px solid rgba(187,247,208,.72);
               border-radius:14px;
               pointer-events:none;
-              box-shadow:0 0 0 2000px rgba(0,0,0,.10) inset;
+              box-shadow:0 0 0 999px rgba(0,0,0,.10) inset;
             "></div>
+
             <div style="
               position:absolute;
               left:8%;
               right:8%;
-              top:56%;
+              top:50%;
               height:2px;
               background:linear-gradient(90deg,transparent,rgba(187,247,208,.95),transparent);
-              box-shadow:0 0 18px rgba(187,247,208,.35);
+              box-shadow:0 0 18px rgba(187,247,208,.45);
               pointer-events:none;
             "></div>
           </div>
@@ -1386,7 +1384,7 @@
             border-radius:12px;
             line-height:1.45;
           ">
-            Aponte para o <b>código de barras da NF</b>. Alinhe o código dentro do retângulo verde.
+            Aponte para o <b>código de barras da NF</b>. Alinhe a chave dentro do retângulo verde.
           </div>
         </div>
       `;
@@ -1409,14 +1407,14 @@
       const config = {
         fps: isIOS ? 20 : 30,
         qrbox: (view) => {
-          const w = Math.min(view.width || 720, 720);
-          const h = Math.min(view.height || 760, 760);
+          const w = Math.min(view.width || 640, 640);
+          const h = Math.min(view.height || 390, 390);
           return {
             width: Math.floor(w * 0.92),
-            height: Math.floor(h * 0.22)
+            height: Math.floor(h * 0.28)
           };
         },
-        aspectRatio: isIOS ? 1.0 : 0.75,
+        aspectRatio: 1.0,
         disableFlip: true,
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         rememberLastUsedCamera: true,
@@ -1436,7 +1434,7 @@
           if(!chave){
             const info = document.getElementById("scanner-info");
             if(info){
-              info.innerHTML = `Lendo... detectei algo, procurando a chave de <span class="scanner-info-highlight">44 dígitos</span>.`;
+              info.innerHTML = `Lendo... procurando a chave de <span class="scanner-info-highlight">44 dígitos</span>.`;
             }
             return;
           }
@@ -1463,18 +1461,36 @@
         }
       );
 
-      // Evita cortar o código de barras no vídeo/canvas.
+      // Força o vídeo/canvas a preencher a área sem criar bloco preto gigante.
       setTimeout(() => {
+        const root = document.getElementById("html5-nf44");
+        if(root){
+          root.style.width = "100%";
+          root.style.height = "100%";
+          root.style.overflow = "hidden";
+        }
+
         const video = document.querySelector("#html5-nf44 video");
         const canvas = document.querySelector("#html5-nf44 canvas");
         [video, canvas].forEach(el => {
           if(el){
             el.style.width = "100%";
             el.style.height = "100%";
-            el.style.objectFit = "contain";
+            el.style.objectFit = "cover";
             el.style.background = "#000";
+            el.style.borderRadius = "12px";
           }
         });
+
+        const scanRegion = document.querySelector("#html5-nf44__scan_region");
+        if(scanRegion){
+          scanRegion.style.width = "100%";
+          scanRegion.style.height = "100%";
+          scanRegion.style.display = "flex";
+          scanRegion.style.alignItems = "center";
+          scanRegion.style.justifyContent = "center";
+          scanRegion.style.overflow = "hidden";
+        }
       }, 700);
     }
 
