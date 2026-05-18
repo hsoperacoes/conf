@@ -10,7 +10,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.4" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.5" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -736,17 +736,132 @@
       }
     }
 
+  
+    /* =========================================================
+       AJUSTES V3.5 - LISTA COMPACTA E SEM ESPAÇO EM BRANCO
+    ========================================================= */
+    #painel{
+      grid-template-columns:360px 1fr !important;
+      align-items:start !important;
+      gap:16px !important;
+      padding-top:14px !important;
+    }
+
+    .campo-pesquisa{
+      margin-bottom:0 !important;
+      border-radius:22px 22px 0 0 !important;
+      box-shadow:var(--shadow) !important;
+    }
+
+    #painel > .titulo{
+      margin-top:0 !important;
+      border-radius:0 !important;
+      border-top:none !important;
+      padding-top:12px !important;
+      padding-bottom:12px !important;
+      box-shadow:none !important;
+    }
+
+    .lista{
+      margin-top:0 !important;
+      border-radius:0 0 22px 22px !important;
+      min-height:0 !important;
+      max-height:calc(100vh - 255px) !important;
+      overflow:auto !important;
+    }
+
+    .item{
+      padding:14px 18px !important;
+      gap:7px !important;
+    }
+
+    .item-main-code{
+      font-size:18px;
+      font-weight:900;
+      color:#0f172a;
+      letter-spacing:.4px;
+      display:inline-flex;
+      align-items:center;
+      gap:14px;
+      white-space:nowrap;
+    }
+
+    .item-main-code span{
+      display:inline-block;
+    }
+
+    .item-info-line{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+      color:#475569;
+      font-size:13px;
+      font-weight:800;
+    }
+
+    .item-info-left{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+
+    .diff-ok{
+      background:#dcfce7;
+      color:#166534;
+      padding:7px 13px;
+      border-radius:999px;
+      font-weight:900;
+      font-size:12px;
+    }
+
+    .diff-bad{
+      background:#fee2e2;
+      color:#b91c1c;
+      padding:7px 13px;
+      border-radius:999px;
+      font-weight:900;
+      font-size:12px;
+    }
+
+    .diff-passando{
+      background:#fef3c7;
+      color:#b45309;
+      padding:7px 13px;
+      border-radius:999px;
+      font-weight:900;
+      font-size:12px;
+    }
+
+    .mini-teste label.manual-title{
+      margin-top:0 !important;
+      color:#0f172a !important;
+      font-size:13px !important;
+    }
+
+    @media(max-width:1100px){
+      #painel{
+        grid-template-columns:1fr !important;
+      }
+
+      .lista{
+        max-height:none !important;
+      }
+    }
+
   </style>
 </head>
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=3.4" class="back-button">
+    <a href="index.html?version=3.5" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=3.4" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=3.5" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -798,7 +913,7 @@
               <div class="muted" id="resumo-nf"></div>
 
               <div class="kpi"><strong>Total itens na NF</strong><span id="kpi-nf">0</span></div>
-              <div class="kpi"><strong>Total escaneado</strong><span id="kpi-scan">0</span></div>
+              <div class="kpi hidden"><strong>Total escaneado</strong><span id="kpi-scan">0</span></div>
               <div class="kpi"><strong>Sync (tempo real)</strong><span id="kpi-sync">—</span></div>
             </div>
 
@@ -816,10 +931,10 @@
               </div>
 
               <div class="mini-teste">
-                <div class="muted" style="margin-bottom:6px"><strong>Teste sem câmera:</strong> cole um EAN e clique em Adicionar</div>
+                <label class="manual-title" for="ean-manual">Campo para inclusão de códigos manuais</label>
                 <div id="buffer-ean" class="loading hidden" style="margin-bottom:5px">🔍 Buscando dados no banco...</div>
                 <div class="row" style="gap:10px">
-                  <input id="ean-manual" type="text" placeholder="Cole aqui o EAN (somente números)" />
+                  <input id="ean-manual" type="text" placeholder="Digite aqui o cód da peça" />
                   <button class="btn-ok" onclick="adicionarEANManual()">
                     <i class="fas fa-plus"></i> Adicionar
                   </button>
@@ -923,11 +1038,11 @@
 
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.4
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.5
   </footer>
 
   <script>
-    const APP_VERSION = "3.4";
+    const APP_VERSION = "3.5";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -1157,6 +1272,18 @@
       let faltam = 0;
       let passam = 0;
 
+      if(!lista || !lista.length){
+        container.innerHTML = `
+          <div class="item">
+            <div class="muted" style="font-weight:800;text-align:center;padding:12px">
+              Nenhum item com diferença no momento.
+            </div>
+          </div>
+        `;
+        document.getElementById("resumo-div").textContent = "";
+        return;
+      }
+
       lista.forEach(i => {
         if(i.status === "FALTANDO") faltam++;
         if(i.status === "PASSANDO" || i.status === "EXTRA") passam++;
@@ -1164,17 +1291,35 @@
         const div = document.createElement("div");
         div.className = "item";
 
-        let badgeClass = "badge";
-        if(i.status === "OK") badgeClass += " ok";
-        else if(i.status === "FALTANDO") badgeClass += " faltando";
-        else if(i.status === "PASSANDO") badgeClass += " passando";
-        else if(i.status === "EXTRA") badgeClass += " extra";
+        let statusTexto = "";
+        let statusClass = "diff-ok";
+
+        if(Number(i.diff || 0) === 0){
+          statusTexto = "OK";
+          statusClass = "diff-ok";
+        }else if(Number(i.diff || 0) < 0){
+          statusTexto = `FALTANDO ${Math.abs(Number(i.diff || 0))}`;
+          statusClass = "diff-bad";
+        }else{
+          statusTexto = `PASSANDO ${Math.abs(Number(i.diff || 0))}`;
+          statusClass = "diff-passando";
+        }
+
+        if(i.status === "EXTRA"){
+          statusTexto = `FORA DA NF +${Math.abs(Number(i.diff || 0))}`;
+          statusClass = "diff-passando";
+        }
 
         div.innerHTML = `
           <div class="row" style="align-items:center">
-            <strong>EAN: ${i.ean}</strong>
+            <div class="item-main-code">
+              <span>${i.codigo || "---"}</span>
+              <span>${i.cor || "---"}</span>
+              <span>${i.tamanho || "---"}</span>
+            </div>
+
             <div style="display:flex;gap:8px;align-items:center">
-              ${i.status ? `<span class="${badgeClass}">${i.status}</span>` : ""}
+              <span class="${statusClass}">${statusTexto}</span>
               <span class="grupo-ajuste" title="Ajuste manual">
                 <button class="btn-ajuste btn-ajuste-menos" onclick="ajustarQtdServidor('${i.ean}', -1)" ${Number(i.qtdScan || 0) <= 0 ? "disabled" : ""}>
                   <i class="fas fa-minus"></i>
@@ -1185,12 +1330,12 @@
               </span>
             </div>
           </div>
-          <div class="row muted">
-            <span>Ref/Cor: ${i.codigo} / ${i.cor}</span>
-            <span>Tam: ${i.tamanho}</span>
-            <span>NF: ${i.qtdNF}</span>
-            <span>Scan: ${i.qtdScan}</span>
-            <span>Dif: ${i.diff}</span>
+
+          <div class="item-info-line">
+            <div class="item-info-left">
+              <span>NF: ${i.qtdNF}</span>
+              <span>Conferido: ${i.qtdScan}</span>
+            </div>
           </div>
         `;
         container.appendChild(div);
@@ -1199,8 +1344,8 @@
       const resumoDiv = document.getElementById("resumo-div");
       if(faltam > 0 || passam > 0){
         resumoDiv.innerHTML = `
-          <span style="color:#f97373">${faltam} itens FALTANDO</span>,
-          <span style="color:#43b0ff">${passam} itens PASSANDO</span>
+          <span style="color:#b91c1c">${faltam} FALTANDO</span>,
+          <span style="color:#b45309">${passam} PASSANDO/FORA DA NF</span>
         `;
       } else {
         resumoDiv.textContent = "";
@@ -1219,7 +1364,7 @@
       if(divergencias.length > 0) {
         abrirModal(divergencias);
       } else {
-        alert("Conferência sem divergências. Nenhum item faltando, passando ou fora da nota.");
+        alert("Conferência sem divergências. Todos os itens estão OK.");
       }
     }
 
