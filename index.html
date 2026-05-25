@@ -1184,11 +1184,11 @@
 
 
   <footer>
-    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.7
+    &copy; 2025 HS - Sistema de Conferência de Notas Fiscais. Versão 3.8
   </footer>
 
   <script>
-    const APP_VERSION = "3.7";
+    const APP_VERSION = "3.8";
 
     const URL_API = "https://script.google.com/macros/s/AKfycbx1HDzA2b478DAhi5ONS6TstKieKf4lvFM9wzib9McUrdP7Z4Xwhb6SrUt5KW1YcR3x/exec";
 
@@ -1224,6 +1224,9 @@
     let syncTimer = null;
     let syncAtivo = false;
     let ultimoSyncHash = "";
+    let syncRequestId = 0;
+    let ajustesPendentes = 0;
+    let ignorarSyncAte = 0;
 
     async function postJSON_(payload){
       const resp = await fetch(URL_API, {
@@ -1552,17 +1555,41 @@
 
     async function limparScans(){
       if(!cabecalhoAtual) return;
-      if(!confirm("Zerar TODA a contagem dessa NF (para todos os usuários)?")) return;
+
+      const chave = String(cabecalhoAtual.chaveAcesso || "").trim();
+      const confirma1 = confirm(
+        "⚠️ ATENÇÃO\n\n" +
+        "Isso vai ZERAR toda a conferência desta NF para TODOS os usuários conectados.\n\n" +
+        "Use somente se realmente precisar recomeçar a contagem.\n\n" +
+        "Deseja continuar?"
+      );
+      if(!confirma1) return;
+
+      const confirma2 = confirm(
+        "Confirma novamente?\n\n" +
+        "A contagem atual da NF será apagada do banco de dados de sincronização."
+      );
+      if(!confirma2) return;
 
       try{
-        await postJSON_({
+        const data = await postJSON_({
           api:"zerarSyncNF",
-          chaveAcesso: String(cabecalhoAtual.chaveAcesso || "").trim()
+          chaveAcesso: chave
         });
-      }catch(e){}
+        if(!data || !data.success) throw new Error(data?.message || "Erro ao zerar no servidor.");
 
-      puxarSyncAgora_();
-      alert("Zerado no servidor (e o Sync vai atualizar a tela).");
+        mapaScan = {};
+        ultimoSyncHash = _hashMapa_(mapaScan);
+        ignorarSyncAte = Date.now() + 1200;
+        atualizarKPIs();
+        const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+        renderizarListaAtual_(jaConferido);
+
+        alert("Conferência zerada no servidor. As telas dos usuários serão atualizadas pelo sync.");
+        await puxarSyncAgora_(true);
+      }catch(e){
+        alert(e.message || "Erro ao zerar conferência.");
+      }
     }
 
     async function ajustarQtdServidor(ean, delta){
@@ -1575,11 +1602,14 @@
       delta = Number(delta || 0);
       if(!ean || !delta) return;
 
-      const atual = Number(mapaScan[ean] || 0);
-      const novaQtd = Math.max(0, atual + delta);
-      if(novaQtd === atual) return;
+      const atualTela = Number(mapaScan[ean] || 0);
+      const novaQtd = Math.max(0, atualTela + delta);
+      if(novaQtd === atualTela) return;
 
-      // ✅ Atualização otimista: muda na tela na hora e confirma no servidor depois.
+      ajustesPendentes++;
+      ignorarSyncAte = Date.now() + 2500;
+
+      // Atualização otimista: fixa visualmente na hora para evitar clique duplicado por delay.
       if(novaQtd <= 0) delete mapaScan[ean];
       else mapaScan[ean] = novaQtd;
 
@@ -1600,18 +1630,34 @@
           throw new Error(data?.message || "Não consegui ajustar no servidor.");
         }
 
+        // O servidor devolve o mapa final já recalculado dentro do LockService.
+        if(data.bipes){
+          mapaScan = data.bipes || {};
+          ultimoSyncHash = _hashMapa_(mapaScan);
+        }else{
+          if(Number(data.qtdAtual || novaQtd) <= 0) delete mapaScan[ean];
+          else mapaScan[ean] = Number(data.qtdAtual || novaQtd);
+          ultimoSyncHash = _hashMapa_(mapaScan);
+        }
+
+        ignorarSyncAte = Date.now() + 1200;
+
         if(!itensNF.some(i => String(i.ean||"") === ean) && !cacheInfoEAN[ean]){
           await buscarEANNoBanco(ean);
         }
 
-        await puxarSyncAgora_();
+        atualizarKPIs();
+        renderizarListaAtual_(jaConferido);
       }catch(e){
-        // ✅ Desfaz na tela se o servidor não aceitar o ajuste.
-        if(atual <= 0) delete mapaScan[ean];
-        else mapaScan[ean] = atual;
+        // Desfaz na tela somente se o servidor recusou a alteração.
+        if(atualTela <= 0) delete mapaScan[ean];
+        else mapaScan[ean] = atualTela;
+        ultimoSyncHash = _hashMapa_(mapaScan);
         atualizarKPIs();
         renderizarListaAtual_(jaConferido);
         alert(e.message || "Erro ao ajustar no servidor.");
+      }finally{
+        ajustesPendentes = Math.max(0, ajustesPendentes - 1);
       }
     }
 
@@ -1727,15 +1773,24 @@
       await buscarEANsNoBanco(pendentes);
     }
 
-    async function puxarSyncAgora_(){
+    async function puxarSyncAgora_(forcar = false){
       if(!syncAtivo || !cabecalhoAtual) return;
       const chave = String(cabecalhoAtual.chaveAcesso || "").trim();
       if(!chave || chave.length !== 44) return;
 
+      // Durante ajuste manual, não deixa uma resposta antiga sobrescrever a tela.
+      if(!forcar && (ajustesPendentes > 0 || Date.now() < ignorarSyncAte)) return;
+
+      const requestId = ++syncRequestId;
+
       try{
         const resp = await fetch(`${URL_API}?api=sincronizarBipes&chave=${encodeURIComponent(chave)}&v=${APP_VERSION}&t=${Date.now()}`);
         const data = await resp.json();
-        if(!data || !data.success) throw new Error("sync fail");
+        if(!data || !data.success) throw new Error(data?.message || "sync fail");
+
+        // Se outra chamada de sync mais nova já começou, descarta esta resposta antiga.
+        if(requestId !== syncRequestId) return;
+        if(!forcar && (ajustesPendentes > 0 || Date.now() < ignorarSyncAte)) return;
 
         const bipes = data.bipes || {};
         const hash = _hashMapa_(bipes);
@@ -2067,7 +2122,16 @@ const scannerDiv = document.getElementById("scanner");
       try{
         const data = await postJSON_(payload);
         if(data && data.success){
-          await puxarSyncAgora_();
+          if(data.bipes){
+            mapaScan = data.bipes || {};
+            ultimoSyncHash = _hashMapa_(mapaScan);
+            await garantirInfoExtras_();
+            atualizarKPIs();
+            const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+            renderizarListaAtual_(jaConferido);
+          }else{
+            await puxarSyncAgora_(true);
+          }
           return true;
         }else{
           throw new Error(data?.message || "Falha ao registrar bipe.");
