@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -10,7 +11,7 @@
   <title>Conferência de Nota Fiscal - HS</title>
 
   <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.7" />
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css?version=3.9" />
 
   <!-- ✅ Html5Qrcode (usado para NF 44 e EAN) -->
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -1002,12 +1003,12 @@
 <body>
 
   <div class="top-nav">
-    <a href="index.html?version=3.7" class="back-button">
+    <a href="index.html?version=3.9" class="back-button">
       <i class="fas fa-arrow-left"></i> Voltar à Home
     </a>
   </div>
 
-  <img src="logo.png?version=3.7" alt="Logo HS" class="logo-topo" />
+  <img src="logo.png?version=3.9" alt="Logo HS" class="logo-topo" />
 
   <div class="container">
     <div class="form-container">
@@ -2034,8 +2035,9 @@ const scannerDiv = document.getElementById("scanner");
             scannerBloqueado = false;
             scannerView.classList.remove("scanner-paused");
             info.classList.remove("scanner-info-paused");
+            const msgErro = (e && e.message) ? e.message : "Falha ao registrar no servidor.";
             info.innerHTML = `
-              ❌ Falha ao registrar no servidor.<br/>
+              ❌ ${msgErro}<br/>
               Tente novamente apontando para o EAN-13.
             `;
           }finally{
@@ -2114,34 +2116,46 @@ const scannerDiv = document.getElementById("scanner");
       const podeRegistrar = await prepararEANParaRegistro_(ean, pedirConfirmacaoExtra);
       if(!podeRegistrar) return false;
 
+      const eanLimpo = String(ean || "").trim();
+
       const payload = {
         api: "registrarBipeIndividual",
         filial: filialAtual,
         filialCodigo: filialAtual,
         filialNome: nomesFiliais[filialAtual] || filialAtual,
         chaveAcesso: String(cabecalhoAtual.chaveAcesso || "").trim(),
-        ean: String(ean || "").trim(),
+        ean: eanLimpo,
         qtd: 1,
         conferente: conferenteAtual || "Usuário"
       };
 
       try{
         const data = await postJSON_(payload);
+
         if(data && data.success){
+          // Se o servidor retornar o mapa completo, usa ele.
           if(data.bipes){
             mapaScan = data.bipes || {};
-            ultimoSyncHash = _hashMapa_(mapaScan);
-            await garantirInfoExtras_();
-            atualizarKPIs();
-            const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
-            renderizarListaAtual_(jaConferido);
           }else{
-            await puxarSyncAgora_(true);
+            // Retorno leve: mantém a tela firme e soma localmente.
+            // O sync em segundo plano confirma depois sem sobrescrever imediatamente.
+            mapaScan[eanLimpo] = Number(mapaScan[eanLimpo] || 0) + 1;
           }
+
+          ultimoSyncHash = _hashMapa_(mapaScan);
+          bloqueioSyncAte = Date.now() + 2500;
+
+          await garantirInfoExtras_();
+          atualizarKPIs();
+
+          const jaConferido = !document.getElementById("btn-enviar").classList.contains("hidden");
+          renderizarListaAtual_(jaConferido);
+
+          document.getElementById("kpi-sync").textContent = "OK";
           return true;
-        }else{
-          throw new Error(data?.message || "Falha ao registrar bipe.");
         }
+
+        throw new Error((data && data.message) ? data.message : "Falha ao registrar bipe no servidor.");
       }catch(e){
         console.error("Falha ao registrar bipe no servidor", e);
         throw e;
